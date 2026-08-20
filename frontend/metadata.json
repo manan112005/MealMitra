@@ -1,0 +1,6 @@
+{
+  "name": "MealMitra",
+  "description": "Smart Homemade Food Platform connecting customers with home cooks and delivery partners with daily meal menus, tiffin subscriptions, and delivery tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
