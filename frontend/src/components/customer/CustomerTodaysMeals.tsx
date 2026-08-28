@@ -19,16 +19,21 @@ export const CustomerTodaysMeals: React.FC = () => {
   const [selectedDietary, setSelectedDietary] = useState<string>('All');
   const [sortBy, setSortBy] = useState<'rating' | 'priceAsc' | 'delivery'>('rating');
 
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const currentDay = days[new Date().getDay()];
+
   const dietaryOptions = ['All', 'Vegetarian', 'High Protein', 'Vegan'];
 
   const filteredMeals = meals
     .filter((meal) => {
+      const daysAvailable = meal.availableDays || ['Monday'];
+      const matchDay = daysAvailable.includes(currentDay);
       const matchCat =
         selectedCategory === 'All' ||
         meal.category === selectedCategory ||
         meal.category === 'Both';
       const matchDiet = selectedDietary === 'All' || meal.dietary === selectedDietary;
-      return matchCat && matchDiet;
+      return matchDay && matchCat && matchDiet;
     })
     .sort((a, b) => {
       if (sortBy === 'rating') return b.rating - a.rating;
@@ -110,7 +115,10 @@ export const CustomerTodaysMeals: React.FC = () => {
             className="bg-white rounded-2xl border border-[#dcc1b1]/60 shadow-[0_4px_20px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col justify-between hover:shadow-md transition-all group"
           >
             {/* Meal Image */}
-            <div className="h-48 w-full relative overflow-hidden bg-[#eeeeed]">
+            <div 
+              className="h-48 w-full relative overflow-hidden bg-[#eeeeed] cursor-pointer"
+              onClick={() => handleOrder(meal)}
+            >
               <img
                 src={meal.image}
                 alt={meal.name}
@@ -125,7 +133,10 @@ export const CustomerTodaysMeals: React.FC = () => {
                 </span>
               </div>
               <button
-                onClick={() => toggleFollowCook(meal.cookId)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFollowCook(meal.cookId);
+                }}
                 className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-xs rounded-full text-[#564337] hover:text-[#944a00] transition-colors shadow-2xs"
                 title="Favorite Cook"
               >

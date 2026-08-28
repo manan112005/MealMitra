@@ -3,6 +3,7 @@ export type UserRole = 'entry' | 'customer' | 'cook' | 'delivery' | 'admin';
 export type AdminTab =
   | 'dashboard'
   | 'users'
+  | 'applications'
   | 'orders'
   | 'financials'
   | 'settings';
@@ -58,6 +59,8 @@ export interface Meal {
   rating: number;
   reviewsCount: number;
   category: 'Lunch' | 'Dinner' | 'Both';
+  timeSlot?: string;
+  availableDays?: string[];
   dietary: 'Vegetarian' | 'High Protein' | 'Vegan' | 'Jain' | 'Gluten-Free' | 'Non-Veg';
   image: string;
   description: string;

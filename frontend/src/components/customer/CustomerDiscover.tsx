@@ -13,7 +13,6 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { CustomerCookProfile } from './CustomerCookProfile';
-
 export const CustomerDiscover: React.FC = () => {
   const { cooks, selectedCookId, setSelectedCookId, toggleFollowCook } = useApp();
 

@@ -98,6 +98,9 @@ interface AppContextType {
   updateDeliveryDuty: (isOnDuty: boolean) => void;
   completeRouteStop: (stopId: string) => void;
   resetAllData: () => void;
+  addMeal: (meal: Omit<Meal, 'id'>) => void;
+  updateMeal: (mealId: string, updated: Partial<Meal>) => void;
+  deleteMeal: (mealId: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -369,30 +372,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateCookWeeklyMenu = (
     cookId: string,
-    dayName: string,
+    day: string,
     mealType: 'lunch' | 'dinner',
     menuData: any
   ) => {
-    setCooks((prev) =>
-      prev.map((c) => {
-        if (c.id === cookId) {
-          const updatedWeekly = c.weeklyMenu.map((item) => {
-            if (item.day.toLowerCase() === dayName.toLowerCase()) {
-              return {
-                ...item,
-                [mealType]: {
-                  ...item[mealType],
-                  ...menuData,
-                },
-              };
-            }
-            return item;
-          });
-          return { ...c, weeklyMenu: updatedWeekly };
-        }
-        return c;
-      })
-    );
+    // Legacy support
+  };
+
+  const addMeal = (mealData: Omit<Meal, 'id'>) => {
+    const newMeal: Meal = {
+      ...mealData,
+      id: `m-${Math.floor(Math.random() * 10000)}`,
+    };
+    setMeals(prev => [newMeal, ...prev]);
+  };
+
+  const updateMeal = (mealId: string, updated: Partial<Meal>) => {
+    setMeals(prev => prev.map(m => m.id === mealId ? { ...m, ...updated } : m));
+  };
+
+  const deleteMeal = (mealId: string) => {
+    setMeals(prev => prev.filter(m => m.id !== mealId));
   };
 
   const updateCookProfile = (cookId: string, updated: Partial<CookProfile>) => {
@@ -572,6 +572,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateDeliveryDuty,
         completeRouteStop,
         resetAllData,
+        addMeal,
+        updateMeal,
+        deleteMeal,
       }}
     >
       {children}

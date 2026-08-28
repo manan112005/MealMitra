@@ -243,7 +243,8 @@ export const CustomerCookProfile: React.FC<Props> = ({ cookId, onBack }) => {
               <img
                 src={meal.image}
                 alt={meal.name}
-                className="w-full sm:w-44 h-44 object-cover shrink-0"
+                onClick={() => meal.availableQty > 0 && setSelectedMealForOrder(meal)}
+                className={`w-full sm:w-44 h-44 object-cover shrink-0 ${meal.availableQty > 0 ? 'cursor-pointer' : ''}`}
               />
               <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                 <div>

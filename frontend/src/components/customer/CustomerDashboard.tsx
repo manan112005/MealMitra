@@ -165,7 +165,8 @@ export const CustomerDashboard: React.FC = () => {
                 <img
                   src={meal.image}
                   alt={meal.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  onClick={() => meal.availableQty > 0 && setSelectedMealForOrder(meal)}
+                  className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${meal.availableQty > 0 ? 'cursor-pointer' : ''}`}
                 />
                 <div className="absolute top-3 left-3 flex gap-2">
                   <span className="bg-[#d1e6c9]/95 text-[#51634c] text-[11px] font-bold px-2.5 py-1 rounded-full shadow-2xs backdrop-blur-xs">

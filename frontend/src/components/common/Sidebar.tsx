@@ -1,5 +1,6 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { CustomerTab, CookTab, DeliveryTab, AdminTab, UserRole } from '../../types';
 import {
   LayoutDashboard,
@@ -31,9 +32,12 @@ import {
   ShieldCheck,
   ClipboardList,
   Banknote,
+  FileCheck,
+  LogOut,
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
+  const { logout } = useAuth();
   const {
     role,
     setRole,
@@ -93,6 +97,7 @@ export const Sidebar: React.FC = () => {
   const adminNavItems: { id: AdminTab; label: string; icon: any }[] = [
     { id: 'dashboard', label: 'Platform Overview', icon: LayoutDashboard },
     { id: 'users', label: 'User Management', icon: Users },
+    { id: 'applications', label: 'Pending Applications', icon: FileCheck },
     { id: 'orders', label: 'Live Orders & Tracking', icon: ClipboardList },
     { id: 'financials', label: 'Financials & Payouts', icon: Banknote },
     { id: 'settings', label: 'Platform Settings', icon: Settings },
@@ -280,6 +285,20 @@ export const Sidebar: React.FC = () => {
             );
           })}
       </nav>
+
+      {/* Logout Button */}
+      <div className="p-3 border-t border-[#dcc1b1]/40">
+        <button
+          onClick={() => {
+            logout();
+            setRole('entry');
+          }}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 border border-red-100 hover:bg-red-100 transition-colors shadow-2xs"
+        >
+          <LogOut className="w-4 h-4" />
+          <span>Logout</span>
+        </button>
+      </div>
 
       {/* Footer info badge */}
       <div className="p-3 border-t border-[#dcc1b1]/40 text-center">

@@ -12,6 +12,7 @@ import {
   Sparkles,
   ShieldCheck,
   ShoppingBag,
+  Star,
 } from 'lucide-react';
 
 interface Props {
@@ -20,11 +21,11 @@ interface Props {
 }
 
 export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
-  const { placeOrder, setCustomerTab } = useApp();
+  const { placeOrder, setCustomerTab, cooks } = useApp();
   const [quantity, setQuantity] = useState(1);
   const [address, setAddress] = useState('Flat 402, Shivalik Heights, Judges Bungalow Rd, Bodakdev');
   const [phone, setPhone] = useState('+91 99250 12345');
-  const [timeSlot, setTimeSlot] = useState('1:00 PM - 1:30 PM (Fastest)');
+  const [timeSlot, setTimeSlot] = useState(meal.timeSlot || '1:00 PM - 1:30 PM (Fastest)');
   const [specialNotes, setSpecialNotes] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [confirmedOrderId, setConfirmedOrderId] = useState('');
@@ -161,7 +162,14 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
                   <h4 className="font-bold text-sm text-[#1a1c1c] truncate">{meal.name}</h4>
                   <span className="font-extrabold text-[#944a00] text-sm">₹{meal.price}</span>
                 </div>
-                <p className="text-xs text-[#564337] mt-0.5">By {meal.cookName}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-xs text-[#564337]">By {meal.cookName}</p>
+                  <div className="flex items-center gap-1 text-[10px] text-[#944a00] font-bold bg-[#ffdcc5]/50 px-1.5 py-0.5 rounded-full">
+                    <Star className="w-3 h-3 fill-[#e67e22] text-[#e67e22]" />
+                    {cooks.find(c => c.name === meal.cookName)?.rating || '4.8'} 
+                    ({cooks.find(c => c.name === meal.cookName)?.reviewsCount || '120'} reviews)
+                  </div>
+                </div>
                 <div className="flex items-center gap-2 mt-2">
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#d1e6c9] text-[#51634c]">
                     {meal.dietary}

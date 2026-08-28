@@ -1,5 +1,6 @@
 import React from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { Header } from './components/common/Header';
 import { Sidebar } from './components/common/Sidebar';
 import { MobileNav } from './components/common/MobileNav';
@@ -35,6 +36,7 @@ import { DeliveryHistoryEarnings } from './components/delivery/DeliveryHistoryEa
 // Admin Components
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { AdminUsers } from './components/admin/AdminUsers';
+import { AdminApplications } from './components/admin/AdminApplications';
 import { AdminOrders } from './components/admin/AdminOrders';
 import { AdminFinancials } from './components/admin/AdminFinancials';
 import { AdminSettings } from './components/admin/AdminSettings';
@@ -51,6 +53,8 @@ const MainLayout: React.FC = () => {
     setSelectedMealForOrder,
     setSelectedCookId,
   } = useApp();
+
+  const { currentUser } = useAuth();
 
   return (
     <div className="min-h-screen bg-[#faf9f8] flex flex-col font-sans text-[#1a1c1c] selection:bg-[#ffdcc5] selection:text-[#944a00]">
@@ -160,6 +164,7 @@ const MainLayout: React.FC = () => {
               <>
                 {adminTab === 'dashboard' && <AdminDashboard />}
                 {adminTab === 'users' && <AdminUsers />}
+                {adminTab === 'applications' && <AdminApplications />}
                 {adminTab === 'orders' && <AdminOrders />}
                 {adminTab === 'financials' && <AdminFinancials />}
                 {adminTab === 'settings' && <AdminSettings />}
@@ -185,8 +190,10 @@ const MainLayout: React.FC = () => {
 
 export default function App() {
   return (
-    <AppProvider>
-      <MainLayout />
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <MainLayout />
+      </AppProvider>
+    </AuthProvider>
   );
 }

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 export const CookKitchenManager: React.FC = () => {
-  const { currentCookProfile, updateKitchenStatus } = useApp();
+  const { currentCookProfile, updateKitchenStatus, updateKitchenQuantities } = useApp();
 
   const [kitchenOpen, setKitchenOpen] = useState(currentCookProfile.kitchenOpen);
   const [lunchAvailableQty, setLunchAvailableQty] = useState(currentCookProfile.lunchAvailableQty);
@@ -23,13 +23,14 @@ export const CookKitchenManager: React.FC = () => {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    updateKitchenStatus({
-      kitchenOpen,
+    updateKitchenStatus(currentCookProfile.id, kitchenOpen);
+    updateKitchenQuantities(
+      currentCookProfile.id,
       lunchAvailableQty,
       lunchTotalQty,
       dinnerAvailableQty,
-      dinnerTotalQty,
-    });
+      dinnerTotalQty
+    );
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 2000);
   };
@@ -101,7 +102,11 @@ export const CookKitchenManager: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setKitchenOpen(!kitchenOpen)}
+            onClick={() => {
+              const newStatus = !kitchenOpen;
+              setKitchenOpen(newStatus);
+              updateKitchenStatus(currentCookProfile.id, newStatus);
+            }}
             className={`px-6 py-3 rounded-xl font-bold text-xs shadow-xs transition-all ${
               kitchenOpen
                 ? 'bg-red-50 hover:bg-red-100 text-red-700 border border-red-200'
