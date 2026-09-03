@@ -46,9 +46,13 @@ const MainLayout: React.FC = () => {
     role,
     setRole,
     customerTab,
+    setCustomerTab,
     cookTab,
+    setCookTab,
     deliveryTab,
+    setDeliveryTab,
     adminTab,
+    setAdminTab,
     selectedMealForOrder,
     setSelectedMealForOrder,
     setSelectedCookId,
@@ -76,19 +80,27 @@ const MainLayout: React.FC = () => {
             {/* Global Quick Back to Landing Bar on all portal pages */}
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3 bg-white/90 backdrop-blur-md border border-[#dcc1b1]/60 rounded-2xl px-4 sm:px-5 py-2.5 shadow-2xs">
               <div className="flex items-center gap-2 sm:gap-3">
-                <button
-                  onClick={() => {
-                    setSelectedCookId(null);
-                    setRole('entry');
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#ffdcc5]/60 hover:bg-[#ffdcc5] text-[#944a00] font-bold text-xs transition-all shadow-2xs hover:shadow-xs group"
-                  title="Return to Main Landing / Entry Screen"
-                >
-                  <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-                  <span>← Back to Landing Page</span>
-                </button>
-
-                <div className="h-4 w-px bg-[#dcc1b1]/50 hidden sm:block"></div>
+                {((role === 'customer' && customerTab !== 'dashboard') ||
+                  (role === 'cook' && cookTab !== 'dashboard') ||
+                  (role === 'delivery' && deliveryTab !== 'dashboard') ||
+                  (role === 'admin' && adminTab !== 'dashboard')) && (
+                  <>
+                    <button
+                      onClick={() => {
+                        if (role === 'customer') setCustomerTab('dashboard');
+                        else if (role === 'cook') setCookTab('dashboard');
+                        else if (role === 'delivery') setDeliveryTab('dashboard');
+                        else if (role === 'admin') setAdminTab('dashboard');
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#ffdcc5]/60 hover:bg-[#ffdcc5] text-[#944a00] font-bold text-xs transition-all shadow-2xs hover:shadow-xs group"
+                      title="Go to dashboard"
+                    >
+                      <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+                      <span>← Back</span>
+                    </button>
+                    <div className="h-4 w-px bg-[#dcc1b1]/50 hidden sm:block"></div>
+                  </>
+                )}
 
                 <div className="text-xs text-[#564337] flex items-center gap-1.5">
                   <span className="capitalize font-semibold text-[#1a1c1c]">
@@ -103,14 +115,11 @@ const MainLayout: React.FC = () => {
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => {
-                    setSelectedCookId(null);
-                    setRole('entry');
-                  }}
+                  onClick={() => window.history.back()}
                   className="text-xs text-[#564337] hover:text-[#944a00] flex items-center gap-1 font-medium transition-colors"
                 >
-                  <Home className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Landing Screen</span>
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Back</span>
                 </button>
               </div>
             </div>
@@ -122,7 +131,6 @@ const MainLayout: React.FC = () => {
                 {customerTab === 'discover' && <CustomerDiscover />}
                 {customerTab === 'meals' && <CustomerTodaysMeals />}
                 {customerTab === 'orders' && <CustomerOrders />}
-                {customerTab === 'subscriptions' && <CustomerSubscriptions />}
                 {customerTab === 'following' && <CustomerFollowingReviews viewMode="following" />}
                 {customerTab === 'reviews' && <CustomerFollowingReviews viewMode="reviews" />}
                 {customerTab === 'profile' && <CustomerProfile />}
@@ -138,10 +146,7 @@ const MainLayout: React.FC = () => {
                 {cookTab === 'menu' && <CookWeeklyMenu />}
                 {cookTab === 'orders' && <CookOrders />}
                 {cookTab === 'customers' && <CookSubscribers />}
-                {cookTab === 'subscriptions' && <CookSubscribers />}
                 {cookTab === 'earnings' && <CookEarningsAnalytics />}
-                {cookTab === 'analytics' && <CookEarningsAnalytics />}
-                {cookTab === 'settings' && <CookProfileSettings />}
               </>
             )}
 

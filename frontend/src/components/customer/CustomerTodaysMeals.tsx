@@ -26,7 +26,7 @@ export const CustomerTodaysMeals: React.FC = () => {
 
   const filteredMeals = meals
     .filter((meal) => {
-      const daysAvailable = meal.availableDays || ['Monday'];
+      const daysAvailable = meal.availableDays || days;
       const matchDay = daysAvailable.includes(currentDay);
       const matchCat =
         selectedCategory === 'All' ||
@@ -117,7 +117,7 @@ export const CustomerTodaysMeals: React.FC = () => {
             {/* Meal Image */}
             <div 
               className="h-48 w-full relative overflow-hidden bg-[#eeeeed] cursor-pointer"
-              onClick={() => handleOrder(meal)}
+              onClick={() => setSelectedMealForOrder(meal)}
             >
               <img
                 src={meal.image}

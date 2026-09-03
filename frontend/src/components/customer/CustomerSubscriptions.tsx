@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { SubscriptionPlan } from '../../types';
+import { loadRazorpay } from '../../utils/razorpay';
 import {
   CalendarDays,
   CheckCircle2,
@@ -28,12 +29,98 @@ export const CustomerSubscriptions: React.FC = () => {
 
   const plansToShow = subscriptionPlans.filter((p) => p.type === selectedPlanPeriod);
 
-  const handleSelectPlan = (plan: SubscriptionPlan) => {
-    subscribeToPlan(plan, {
-      address: `${lunchAddress} (Lunch) / ${dinnerAddress} (Dinner)`,
-      lunchTiming: lunchTime,
-      dinnerTiming: dinnerTime,
-    });
+  const [processingPlanId, setProcessingPlanId] = useState<string | null>(null);
+
+  const handleSelectPlan = async (plan: SubscriptionPlan) => {
+    setProcessingPlanId(plan.id);
+    
+    try {
+      const isLoaded = await loadRazorpay();
+      if (!isLoaded) {
+        throw new Error('Razorpay SDK failed to load. Are you offline or using an adblocker?');
+      }
+
+      const response = await fetch('http://localhost:3001/api/payments/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'subscription',
+          subscriptionId: plan.id,
+          amount: plan.price,
+        }),
+      });
+
+      const orderData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(orderData.error || 'Failed to initialize payment');
+      }
+
+      const options = {
+        key: orderData.key,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'MealMitra Subscriptions',
+        description: `Subscription: ${plan.name}`,
+        order_id: orderData.orderId,
+        handler: async (response: any) => {
+          try {
+            const verifyRes = await fetch('http://localhost:3001/api/payments/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+
+            const verifyData = await verifyRes.json();
+
+            if (verifyRes.ok && verifyData.status === 'success') {
+              subscribeToPlan(plan, {
+                address: `${lunchAddress} (Lunch) / ${dinnerAddress} (Dinner)`,
+                lunchTiming: lunchTime,
+                dinnerTiming: dinnerTime,
+              });
+              alert('Subscription activated successfully!');
+            } else {
+              alert('Payment verification failed. Please try again.');
+            }
+          } catch (err) {
+            console.error('Verification error:', err);
+            alert('Error verifying payment.');
+          } finally {
+            setProcessingPlanId(null);
+          }
+        },
+        prefill: {
+          name: 'Jay Shah',
+          contact: '+91 99250 12345',
+        },
+        theme: {
+          color: '#944a00',
+        },
+        modal: {
+          ondismiss: () => {
+            setProcessingPlanId(null);
+          }
+        }
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.on('payment.failed', function (response: any) {
+        console.error(response.error);
+        alert(`Payment failed: ${response.error.description}`);
+        setProcessingPlanId(null);
+      });
+      rzp.open();
+
+    } catch (error: any) {
+      console.error('Payment Error:', error);
+      alert(`Could not initiate payment: ${error.message || 'Ensure backend is running.'}`);
+      setProcessingPlanId(null);
+    }
   };
 
   return (
@@ -290,13 +377,14 @@ export const CustomerSubscriptions: React.FC = () => {
 
               <button
                 onClick={() => handleSelectPlan(plan)}
+                disabled={processingPlanId === plan.id}
                 className={`w-full py-3 rounded-xl font-bold text-xs shadow-xs transition-all ${
                   plan.isPopular
-                    ? 'bg-[#944a00] hover:bg-[#713700] text-white'
-                    : 'bg-[#faf9f8] hover:bg-[#ffdcc5]/40 text-[#944a00] border border-[#dcc1b1]'
+                    ? 'bg-[#944a00] hover:bg-[#713700] text-white disabled:bg-gray-400'
+                    : 'bg-[#faf9f8] hover:bg-[#ffdcc5]/40 text-[#944a00] border border-[#dcc1b1] disabled:bg-gray-200'
                 }`}
               >
-                Subscribe to {plan.name}
+                {processingPlanId === plan.id ? 'Processing...' : `Subscribe to ${plan.name}`}
               </button>
             </div>
           ))}

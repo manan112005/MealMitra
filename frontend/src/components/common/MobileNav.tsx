@@ -15,6 +15,7 @@ import {
   Bike,
   Wallet,
   Home,
+  ArrowLeft,
 } from 'lucide-react';
 
 export const MobileNav: React.FC = () => {
@@ -37,15 +38,12 @@ export const MobileNav: React.FC = () => {
       {role === 'customer' && (
         <>
           <button
-            onClick={() => {
-              setSelectedCookId(null);
-              setRole('entry');
-            }}
+            onClick={() => window.history.back()}
             className="flex flex-col items-center py-1 px-1.5 rounded-lg text-[10px] font-bold text-[#944a00] transition-colors"
-            title="Return to Landing Page"
+            title="Go to previous page"
           >
-            <Home className="w-5 h-5 mb-0.5" />
-            <span>Landing</span>
+            <ArrowLeft className="w-5 h-5 mb-0.5" />
+            <span>Back</span>
           </button>
           <button
             onClick={() => {
@@ -80,30 +78,18 @@ export const MobileNav: React.FC = () => {
             <ShoppingBag className="w-5 h-5 mb-0.5" />
             <span>Orders</span>
           </button>
-          <button
-            onClick={() => setCustomerTab('subscriptions')}
-            className={`flex flex-col items-center py-1 px-1.5 rounded-lg text-[10px] font-semibold transition-colors ${
-              customerTab === 'subscriptions' ? 'text-[#944a00]' : 'text-[#564337]'
-            }`}
-          >
-            <CalendarDays className="w-5 h-5 mb-0.5" />
-            <span>Tiffins</span>
-          </button>
         </>
       )}
 
       {role === 'cook' && (
         <>
           <button
-            onClick={() => {
-              setSelectedCookId(null);
-              setRole('entry');
-            }}
+            onClick={() => window.history.back()}
             className="flex flex-col items-center py-1 px-1.5 rounded-lg text-[10px] font-bold text-[#944a00] transition-colors"
-            title="Return to Landing Page"
+            title="Go to previous page"
           >
-            <Home className="w-5 h-5 mb-0.5" />
-            <span>Landing</span>
+            <ArrowLeft className="w-5 h-5 mb-0.5" />
+            <span>Back</span>
           </button>
           <button
             onClick={() => setCookTab('dashboard')}
@@ -147,15 +133,12 @@ export const MobileNav: React.FC = () => {
       {role === 'delivery' && (
         <>
           <button
-            onClick={() => {
-              setSelectedCookId(null);
-              setRole('entry');
-            }}
+            onClick={() => window.history.back()}
             className="flex flex-col items-center py-1 px-1.5 rounded-lg text-[10px] font-bold text-[#944a00] transition-colors"
-            title="Return to Landing Page"
+            title="Go to previous page"
           >
-            <Home className="w-5 h-5 mb-0.5" />
-            <span>Landing</span>
+            <ArrowLeft className="w-5 h-5 mb-0.5" />
+            <span>Back</span>
           </button>
           <button
             onClick={() => setDeliveryTab('dashboard')}

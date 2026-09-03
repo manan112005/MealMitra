@@ -17,9 +17,9 @@ interface AuthContextType {
   currentUser: AuthUser | null;
   users: AuthUser[];
   signup: (userData: Omit<AuthUser, 'id' | 'avatar' | 'status'>) => { success: boolean; error?: string };
-  loginWithEmail: (email: string, password: string, role: UserRole) => { user?: AuthUser; error?: string };
-  loginWithOTP: (phone: string, otp: string, role: UserRole) => { user?: AuthUser; error?: string };
-  loginWithGoogle: (role: UserRole) => void;
+  loginWithEmail: (email: string, password: string) => { user?: AuthUser; error?: string };
+  loginWithOTP: (phone: string, otp: string) => { user?: AuthUser; error?: string };
+  loginWithGoogle: () => void;
   updateUserStatus: (userId: string, newStatus: AuthUser['status']) => void;
   logout: () => void;
 }
@@ -70,8 +70,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true };
   };
 
-  const loginWithEmail = (email: string, password: string, role: UserRole) => {
-    const user = users.find(u => u.email === email && u.password === password && u.role === role);
+  const loginWithEmail = (email: string, password: string) => {
+    const user = users.find(u => u.email === email && u.password === password);
     if (user) {
       if (user.status === 'rejected') return { error: 'Your application has been rejected.' };
       if (user.status === 'suspended') return { error: 'Your account is suspended.' };
@@ -82,10 +82,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error: 'Invalid email or password.' };
   };
 
-  const loginWithOTP = (phone: string, otp: string, role: UserRole) => {
+  const loginWithOTP = (phone: string, otp: string) => {
     // In a mock environment, we'll accept any 4 digit OTP for demo purposes, 
     // but the phone number must be registered for this role.
-    const user = users.find(u => u.phone === phone && u.role === role);
+    const user = users.find(u => u.phone === phone);
     if (user && otp.length >= 4) {
       if (user.status === 'rejected') return { error: 'Your application has been rejected.' };
       if (user.status === 'suspended') return { error: 'Your account is suspended.' };
@@ -95,7 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // Auto-create customer account if one doesn't exist
-    if (!user && role === 'customer' && otp.length >= 4) {
+    if (!user && otp.length >= 4) {
       const newCustomer: AuthUser = {
         id: `usr-${Date.now()}`,
         name: 'New Customer',
@@ -113,14 +113,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error: 'Invalid phone or OTP. Ensure you are registered.' };
   };
 
-  const loginWithGoogle = (role: UserRole) => {
-    // Mock Google Login instantly creates and logs in an approved test user
+  const loginWithGoogle = () => {
+    // Mock Google Login instantly creates and logs in an approved test customer
     const googleUser: AuthUser = {
       id: `usr-${Date.now()}`,
       name: 'Google User',
       email: `googleuser_${Date.now()}@gmail.com`,
       phone: '9999999999',
-      role: role,
+      role: 'customer',
       status: 'approved',
       avatar: MOCK_AVATARS[0]
     };

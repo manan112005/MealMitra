@@ -20,41 +20,9 @@ import {
 export const Header: React.FC = () => {
   const { role, setRole, setCustomerTab, setCookTab, setDeliveryTab, setSelectedCookId, resetAllData } = useApp();
   const { currentUser, logout } = useAuth();
-  const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [showNotificationToast, setShowNotificationToast] = useState(false);
 
-  const rolesConfig: { id: UserRole; title: string; subtitle: string; icon: any; color: string }[] = [
-    {
-      id: 'customer',
-      title: 'Customer Experience',
-      subtitle: 'Browse cooks, order meals & subscriptions',
-      icon: User,
-      color: 'bg-[#ffdcc5] text-[#944a00]',
-    },
-    {
-      id: 'cook',
-      title: 'Home Cook Experience',
-      subtitle: 'Manage kitchen, menus, orders & earnings',
-      icon: ChefHat,
-      color: 'bg-[#d1e6c9] text-[#51634c]',
-    },
-    {
-      id: 'delivery',
-      title: 'Delivery Partner Experience',
-      subtitle: 'Smart cluster routes, pickups & deliveries',
-      icon: Bike,
-      color: 'bg-[#d1e4fc] text-[#4e6074]',
-    },
-  ];
 
-  const handleRoleChange = (newRole: UserRole) => {
-    setSelectedCookId(null);
-    if (newRole === 'customer') setCustomerTab('dashboard');
-    if (newRole === 'cook') setCookTab('dashboard');
-    if (newRole === 'delivery') setDeliveryTab('dashboard');
-    setRole(newRole);
-    setShowRoleDropdown(false);
-  };
 
   const handleLogout = () => {
     logout();
@@ -100,18 +68,7 @@ export const Header: React.FC = () => {
 
         {role !== 'entry' && (
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                setSelectedCookId(null);
-                setRole('entry');
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-[#ffdcc5]/50 border border-[#dcc1b1] text-xs font-bold text-[#944a00] shadow-2xs transition-all hover:shadow-xs"
-              title="Return to Main Landing Page"
-            >
-              <Home className="w-3.5 h-3.5 text-[#944a00]" />
-              <span className="hidden xs:inline">Home / Landing</span>
-              <span className="xs:hidden">Home</span>
-            </button>
+
 
             <div className={`hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${roleBadge.bg} ${roleBadge.text}`}>
               <RoleIcon className="w-3.5 h-3.5" />
@@ -134,7 +91,7 @@ export const Header: React.FC = () => {
         </button>
 
         {/* Authentication / Role Switcher */}
-        {currentUser ? (
+        {currentUser && (
           <div className="flex items-center gap-3 ml-2">
             <div className="hidden sm:block text-right">
               <div className="text-sm font-bold text-[#1a1c1c]">{currentUser.name}</div>
@@ -145,74 +102,6 @@ export const Header: React.FC = () => {
               alt={currentUser.name}
               className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border-2 border-white shadow-sm"
             />
-          </div>
-        ) : (
-          <div className="relative">
-            <button
-              onClick={() => setShowRoleDropdown(!showRoleDropdown)}
-              className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full border border-[#944a00]/30 bg-white hover:bg-[#ffdcc5]/40 text-[#944a00] text-xs sm:text-sm font-semibold shadow-sm transition-all active:scale-95"
-              id="role-switch-btn"
-            >
-              <ArrowLeftRight className="w-4 h-4 text-[#944a00]" />
-              <span className="hidden sm:inline">Switch Role</span>
-              <span className="capitalize text-xs px-2 py-0.5 rounded-full bg-[#ffdcc5] text-[#944a00]">
-                {role === 'entry' ? 'Select' : role}
-              </span>
-            </button>
-
-            {showRoleDropdown && (
-              <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white rounded-xl shadow-xl border border-[#dcc1b1]/60 p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-                <div className="px-3 py-2 border-b border-[#eeeeed]">
-                  <p className="text-xs font-bold uppercase tracking-wider text-[#564337]">
-                    Prototype Role Selection
-                  </p>
-                  <p className="text-[11px] text-[#564337]/80">
-                    Switch instantly between the 3 role experiences.
-                  </p>
-                </div>
-
-                <div className="mt-1 space-y-1">
-                  {rolesConfig.map((item) => {
-                    const Icon = item.icon;
-                    const isSelected = role === item.id;
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => handleRoleChange(item.id)}
-                        className={`w-full flex items-center justify-between p-2.5 rounded-lg text-left transition-all ${
-                          isSelected
-                            ? 'bg-[#ffdcc5]/40 border border-[#944a00]/30'
-                            : 'hover:bg-[#f4f3f2]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${item.color}`}>
-                            <Icon className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <div className="text-xs sm:text-sm font-bold text-[#1a1c1c]">
-                              {item.title}
-                            </div>
-                            <div className="text-[11px] text-[#564337] line-clamp-1">
-                              {item.subtitle}
-                            </div>
-                          </div>
-                        </div>
-                        {isSelected && <Check className="w-4 h-4 text-[#944a00]" />}
-                      </button>
-                    );
-                  })}
-
-                  <button
-                    onClick={() => handleRoleChange('entry')}
-                    className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left text-xs font-semibold text-[#564337] hover:bg-[#f4f3f2] border-t border-[#eeeeed] mt-2 pt-2`}
-                  >
-                    <Sparkles className="w-4 h-4 text-[#944a00]" />
-                    <span>Return to Entry / Landing Screen</span>
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         )}
 

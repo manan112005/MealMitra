@@ -30,7 +30,7 @@ export const EntryScreen: React.FC = () => {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginOtp, setLoginOtp] = useState('');
-  const [loginOtpSent, setLoginOtpSent] = useState(false);
+  const [showOtpModal, setShowOtpModal] = useState(false);
   const [loginError, setLoginError] = useState('');
 
   // Signup State (Multi-step)
@@ -77,7 +77,7 @@ export const EntryScreen: React.FC = () => {
         setLoginError('Please enter email and password.');
         return;
       }
-      const { user, error } = loginWithEmail(loginEmail, loginPassword, selectedRole);
+      const { user, error } = loginWithEmail(loginEmail, loginPassword);
       if (user) {
         navigateToRole(user.role);
       } else {
@@ -88,20 +88,22 @@ export const EntryScreen: React.FC = () => {
         setLoginError('Please enter phone number.');
         return;
       }
-      if (!loginOtpSent) {
-        setLoginOtpSent(true);
-        return;
-      }
-      if (!loginOtp) {
-        setLoginError('Please enter OTP.');
-        return;
-      }
-      const { user, error } = loginWithOTP(loginPhone, loginOtp, selectedRole);
-      if (user) {
-        navigateToRole(user.role);
-      } else {
-        setLoginError(error || 'Invalid OTP.');
-      }
+      setShowOtpModal(true);
+    }
+  };
+
+  const handleOtpVerify = () => {
+    setLoginError('');
+    if (!loginOtp) {
+      setLoginError('Please enter OTP.');
+      return;
+    }
+    const { user, error } = loginWithOTP(loginPhone, loginOtp);
+    if (user) {
+      setShowOtpModal(false);
+      navigateToRole(user.role);
+    } else {
+      setLoginError(error || 'Invalid OTP.');
     }
   };
 
@@ -151,7 +153,7 @@ export const EntryScreen: React.FC = () => {
   };
 
   const handleAdminLogin = () => {
-    loginWithGoogle('admin');
+    loginWithGoogle();
     navigateToRole('admin');
   };
 
@@ -251,50 +253,7 @@ export const EntryScreen: React.FC = () => {
                       </p>
                     </div>
 
-                    {/* Role Selector */}
-                    <div className="mb-6">
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-[#1a1c1c] mb-2.5">
-                        Login As
-                      </label>
-                      <div className="grid grid-cols-3 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedRole('customer')}
-                          className={`flex flex-col items-center justify-center py-3.5 px-2 rounded-[14px] border-[1.5px] transition-all ${
-                            selectedRole === 'customer'
-                              ? 'bg-[#ffdcc5]/40 border-[#944a00] text-[#944a00]'
-                              : 'bg-white border-[#eeeeed] text-[#564337] hover:border-[#dcc1b1]'
-                          }`}
-                        >
-                          <User className={`w-4 h-4 mb-2 ${selectedRole === 'customer' ? 'text-[#944a00]' : 'text-[#564337]'}`} />
-                          <span className="text-[10px] font-bold">Customer</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedRole('cook')}
-                          className={`flex flex-col items-center justify-center py-3.5 px-2 rounded-[14px] border-[1.5px] transition-all ${
-                            selectedRole === 'cook'
-                              ? 'bg-white border-[#51634c] text-[#1a1c1c]'
-                              : 'bg-white border-[#eeeeed] text-[#564337] hover:border-[#dcc1b1]'
-                          }`}
-                        >
-                          <ChefHat className={`w-4 h-4 mb-2 ${selectedRole === 'cook' ? 'text-[#51634c]' : 'text-[#564337]'}`} />
-                          <span className="text-[10px] font-bold">Home Cook</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedRole('delivery')}
-                          className={`flex flex-col items-center justify-center py-3.5 px-2 rounded-[14px] border-[1.5px] transition-all ${
-                            selectedRole === 'delivery'
-                              ? 'bg-white border-[#4e6074] text-[#1a1c1c]'
-                              : 'bg-white border-[#eeeeed] text-[#564337] hover:border-[#dcc1b1]'
-                          }`}
-                        >
-                          <Bike className={`w-4 h-4 mb-2 ${selectedRole === 'delivery' ? 'text-[#4e6074]' : 'text-[#564337]'}`} />
-                          <span className="text-[10px] font-bold text-center leading-tight">Delivery<br/>Partner</span>
-                        </button>
-                      </div>
-                    </div>
+                    {/* Role selector removed */}
 
                     {loginError && (
                       <div className="p-2.5 mb-4 bg-red-50 text-red-600 text-[11px] font-semibold rounded-lg border border-red-100 text-center">
@@ -335,31 +294,14 @@ export const EntryScreen: React.FC = () => {
                         </>
                       )}
 
-                      {loginMethod === 'otp' && loginOtpSent && (
-                        <div className="pt-2">
-                          <label className="block text-[9px] font-bold uppercase tracking-wider text-[#564337] mb-2">
-                            Enter 6-Digit OTP
-                          </label>
-                          <div className="relative">
-                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#564337]/50" />
-                            <input
-                              type="text"
-                              maxLength={6}
-                              value={loginOtp}
-                              onChange={(e) => setLoginOtp(e.target.value)}
-                              className="w-full pl-11 pr-4 py-3.5 border border-[#eeeeed] bg-white rounded-xl text-sm tracking-[0.5em] font-bold focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] transition-all shadow-2xs"
-                              placeholder="••••••"
-                            />
-                          </div>
-                        </div>
-                      )}
+                      {/* Inline OTP removed */}
 
                       <button
                         type="submit"
                         className="w-full py-3.5 bg-[#1a1c1c] text-white font-bold text-sm rounded-xl shadow-md hover:bg-[#333] transition-all flex items-center justify-center gap-2 group mt-4"
                       >
                         <span>
-                          {loginMethod === 'otp' && !loginOtpSent ? 'Send OTP' : 'Login'}
+                          {loginMethod === 'otp' ? 'Send OTP' : 'Login'}
                         </span>
                         <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                       </button>
@@ -620,6 +562,51 @@ export const EntryScreen: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* OTP Verification Modal */}
+      {showOtpModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-[24px] shadow-2xl p-6 sm:p-8 w-full max-w-sm border border-[#eeeeed]">
+            <div className="text-center mb-6">
+              <div className="w-12 h-12 bg-[#ffdcc5]/40 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Lock className="w-5 h-5 text-[#944a00]" />
+              </div>
+              <h3 className="text-xl font-extrabold text-[#1a1c1c] mb-1">Enter OTP</h3>
+              <p className="text-xs text-[#564337]">Sent to +91 {loginPhone}</p>
+            </div>
+            
+            <div className="relative mb-6">
+              <input
+                type="text"
+                maxLength={6}
+                value={loginOtp}
+                onChange={(e) => setLoginOtp(e.target.value)}
+                className="w-full px-4 py-4 border border-[#eeeeed] bg-[#faf9f8] rounded-xl text-2xl tracking-[0.5em] text-center font-bold focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] transition-all shadow-inner"
+                placeholder="••••••"
+                autoFocus
+              />
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowOtpModal(false)}
+                className="flex-1 py-3.5 bg-white text-[#564337] font-bold text-sm rounded-xl border border-[#eeeeed] hover:bg-[#faf9f8] hover:border-[#dcc1b1] transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleOtpVerify}
+                className="flex-1 py-3.5 bg-[#1a1c1c] text-white font-bold text-sm rounded-xl shadow-md hover:bg-[#333] transition-all flex items-center justify-center gap-2"
+              >
+                <span>Verify</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Meal } from '../../types';
+import { loadRazorpay } from '../../utils/razorpay';
 import {
   X,
   Plus,
@@ -35,18 +36,102 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
   const packagingFee = 15;
   const total = subtotal + deliveryFee + packagingFee;
 
-  const handlePlaceOrder = (e: React.FormEvent) => {
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
+  const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    const orderId = placeOrder({
-      meal,
-      quantity,
-      address,
-      phone,
-      timeSlot,
-      specialNotes,
-    });
-    setConfirmedOrderId(orderId);
-    setIsSubmitted(true);
+    setIsProcessingPayment(true);
+
+    try {
+      const isLoaded = await loadRazorpay();
+      if (!isLoaded) {
+        throw new Error('Razorpay SDK failed to load. Are you offline or using an adblocker?');
+      }
+
+      const response = await fetch('http://localhost:3001/api/payments/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'one_time',
+          amount: total,
+        }),
+      });
+
+      const orderData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(orderData.error || 'Failed to initialize payment');
+      }
+
+      const options = {
+        key: orderData.key,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'MealMitra',
+        description: `Order for ${meal.name}`,
+        order_id: orderData.orderId,
+        handler: async (response: any) => {
+          try {
+            const verifyRes = await fetch('http://localhost:3001/api/payments/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+
+            const verifyData = await verifyRes.json();
+
+            if (verifyRes.ok && verifyData.status === 'success') {
+              const finalOrderId = placeOrder({
+                meal,
+                quantity,
+                address,
+                phone,
+                timeSlot,
+                specialNotes,
+              });
+              setConfirmedOrderId(finalOrderId);
+              setIsSubmitted(true);
+            } else {
+              alert('Payment verification failed. Please try again.');
+            }
+          } catch (err) {
+            console.error('Verification error:', err);
+            alert('Error verifying payment.');
+          } finally {
+            setIsProcessingPayment(false);
+          }
+        },
+        prefill: {
+          name: 'Jay Shah',
+          contact: phone,
+        },
+        theme: {
+          color: '#944a00',
+        },
+        modal: {
+          ondismiss: () => {
+            setIsProcessingPayment(false);
+          }
+        }
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.on('payment.failed', function (response: any) {
+        console.error(response.error);
+        alert(`Payment failed: ${response.error.description}`);
+        setIsProcessingPayment(false);
+      });
+      rzp.open();
+
+    } catch (error: any) {
+      console.error('Payment Error:', error);
+      alert(`Could not initiate payment: ${error.message || 'Ensure backend is running.'}`);
+      setIsProcessingPayment(false);
+    }
   };
 
   const handleGoToOrders = () => {
@@ -290,10 +375,14 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
             {/* Submit CTA */}
             <button
               type="submit"
-              disabled={meal.availableQty < 1}
+              disabled={meal.availableQty < 1 || isProcessingPayment}
               className="w-full py-3.5 px-6 bg-[#944a00] hover:bg-[#713700] disabled:bg-gray-300 text-white font-bold text-sm rounded-xl shadow-md transition-all active:scale-[0.98]"
             >
-              {meal.availableQty < 1 ? 'Sold Out Today' : `Confirm & Place Order • ₹${total}`}
+              {meal.availableQty < 1 
+                ? 'Sold Out Today' 
+                : isProcessingPayment 
+                  ? 'Processing Payment...' 
+                  : `Pay Securely & Place Order • ₹${total}`}
             </button>
           </form>
         )}

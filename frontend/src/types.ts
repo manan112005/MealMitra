@@ -13,7 +13,6 @@ export type CustomerTab =
   | 'discover'
   | 'meals'
   | 'orders'
-  | 'subscriptions'
   | 'following'
   | 'reviews'
   | 'profile';
@@ -25,10 +24,7 @@ export type CookTab =
   | 'menu'
   | 'orders'
   | 'customers'
-  | 'subscriptions'
-  | 'earnings'
-  | 'analytics'
-  | 'settings';
+  | 'earnings';
 
 export type DeliveryTab =
   | 'dashboard'

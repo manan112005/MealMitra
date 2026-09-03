@@ -84,7 +84,6 @@ export const CustomerDashboard: React.FC = () => {
 
         {/* Metric 2 */}
         <div
-          onClick={() => setCustomerTab('subscriptions')}
           className="bg-white p-5 rounded-2xl border border-[#dcc1b1]/50 shadow-[0_4px_20px_rgba(0,0,0,0.03)] cursor-pointer hover:border-[#51634c] transition-all group"
         >
           <div className="flex items-center gap-2 text-[#564337] mb-2">

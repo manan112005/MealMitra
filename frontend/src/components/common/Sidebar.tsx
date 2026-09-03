@@ -37,7 +37,7 @@ import {
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
-  const { logout } = useAuth();
+  const { currentUser, logout } = useAuth();
   const {
     role,
     setRole,
@@ -61,7 +61,6 @@ export const Sidebar: React.FC = () => {
     { id: 'discover', label: 'Discover Cooks', icon: Compass },
     { id: 'meals', label: "Today's Meals", icon: Utensils },
     { id: 'orders', label: 'Orders & Tracking', icon: ShoppingBag },
-    { id: 'subscriptions', label: 'Subscriptions', icon: CalendarDays },
     { id: 'following', label: 'Following', icon: Heart },
     { id: 'reviews', label: 'Reviews & Ratings', icon: Star },
     { id: 'profile', label: 'My Profile', icon: User },
@@ -75,10 +74,7 @@ export const Sidebar: React.FC = () => {
     { id: 'menu', label: 'Weekly Menu Manager', icon: BookOpen },
     { id: 'orders', label: 'Order Processing', icon: ShoppingBag },
     { id: 'customers', label: 'Subscribers & Customers', icon: Users },
-    { id: 'subscriptions', label: 'Subscriptions', icon: Repeat },
     { id: 'earnings', label: 'Earnings & Payouts', icon: Wallet },
-    { id: 'analytics', label: 'Analytics & AI Insights', icon: TrendingUp },
-    { id: 'settings', label: 'Kitchen Settings', icon: Settings },
   ];
 
   // Delivery navigation items
@@ -177,29 +173,21 @@ export const Sidebar: React.FC = () => {
 
         {/* Home Landing Page & Switch Role buttons */}
         <div className="mt-3 flex flex-col gap-1.5">
-          <button
-            onClick={() => {
-              setSelectedCookId(null);
-              setRole('entry');
-            }}
-            className="w-full py-1.5 px-3 bg-white border border-[#dcc1b1] hover:bg-[#ffdcc5]/40 text-[#944a00] text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-2xs"
-            title="Return to Main Landing Page"
-          >
-            <Home className="w-3.5 h-3.5 text-[#944a00]" />
-            <span>← Back to Landing Page</span>
-          </button>
 
-          <button
-            onClick={() => {
-              const nextRole: UserRole =
-                role === 'customer' ? 'cook' : role === 'cook' ? 'delivery' : role === 'delivery' ? 'admin' : 'customer';
-              setRole(nextRole);
-            }}
-            className="w-full py-1.5 px-3 bg-[#faf9f8] border border-[#dcc1b1]/60 hover:bg-[#eeeeed] text-[#564337] text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <ArrowLeftRight className="w-3.5 h-3.5" />
-            <span>Switch Role</span>
-          </button>
+
+          {currentUser?.role === 'admin' && (
+            <button
+              onClick={() => {
+                const nextRole: UserRole =
+                  role === 'customer' ? 'cook' : role === 'cook' ? 'delivery' : role === 'delivery' ? 'admin' : 'customer';
+                setRole(nextRole);
+              }}
+              className="w-full py-1.5 px-3 bg-[#faf9f8] border border-[#dcc1b1]/60 hover:bg-[#eeeeed] text-[#564337] text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+              <span className="capitalize">Switch View: {role}</span>
+            </button>
+          )}
         </div>
       </div>
 
