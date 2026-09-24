@@ -32,7 +32,10 @@ export const CustomerDashboard: React.FC = () => {
 
   const followedCooksCount = cooks.filter((c) => c.isFollowing).length;
 
-  const recommendedMeals = meals.slice(0, 3);
+  // Availability-aware matching (Doc 2 §8 & Doc 3 §2): filter for open slot capacity first
+  const recommendedMeals = [...meals]
+    .filter((m) => m.availableQty > 0)
+    .slice(0, 3);
   const topCooks = cooks.slice(0, 3);
 
   const handleCookProfileView = (cookId: string) => {
@@ -50,7 +53,7 @@ export const CustomerDashboard: React.FC = () => {
               Good afternoon 👋
             </h2>
             <p className="text-sm sm:text-base text-[#564337]">
-              Find something homemade and delicious today. Fresh kitchens are cooking right now in your neighborhood.
+              Reserve fresh homemade tiffins from neighborhood kitchens. Finite batches cooked fresh daily.
             </p>
           </div>
           <button
@@ -58,7 +61,7 @@ export const CustomerDashboard: React.FC = () => {
             className="self-start sm:self-auto px-4 py-2.5 bg-[#944a00] hover:bg-[#713700] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-2"
           >
             <Flame className="w-4 h-4" />
-            <span>Explore Today's Menus</span>
+            <span>Explore Today's Slots</span>
           </button>
         </div>
       </section>
@@ -72,13 +75,13 @@ export const CustomerDashboard: React.FC = () => {
         >
           <div className="flex items-center gap-2 text-[#564337] mb-2">
             <ShoppingBag className="w-4 h-4 text-[#944a00]" />
-            <span className="text-xs font-bold">Active Orders</span>
+            <span className="text-xs font-bold">Active Reservations</span>
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-[#944a00] group-hover:scale-105 transition-transform origin-left">
             {activeOrdersCount}
           </div>
           <span className="text-[11px] text-[#564337]/80 mt-1 block">
-            {activeOrdersCount > 0 ? 'Live in transit' : 'No active orders'}
+            {activeOrdersCount > 0 ? 'Live in progress' : 'No active reservations'}
           </span>
         </div>
 
@@ -217,19 +220,22 @@ export const CustomerDashboard: React.FC = () => {
                   <span className="text-[11px] font-medium text-[#564337]">
                     {meal.availableQty > 0 ? (
                       <span className="text-[#51634c] font-semibold">
-                        ● {meal.availableQty} meals ready
+                        ● {meal.availableQty} slots available
                       </span>
                     ) : (
-                      <span className="text-red-500 font-semibold">● Sold Out Today</span>
+                      <span className="text-amber-800 font-semibold">● Capacity Full</span>
                     )}
                   </span>
 
                   <button
-                    disabled={meal.availableQty < 1}
                     onClick={() => setSelectedMealForOrder(meal)}
-                    className="px-4 py-2 bg-[#944a00] hover:bg-[#713700] disabled:bg-gray-200 disabled:text-gray-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs active:scale-95"
+                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-xs active:scale-95 ${
+                      meal.availableQty > 0
+                        ? 'bg-[#944a00] hover:bg-[#713700] text-white'
+                        : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
+                    }`}
                   >
-                    {meal.availableQty > 0 ? 'Order Now' : 'Sold Out'}
+                    {meal.availableQty > 0 ? 'Reserve Slot' : 'Join Waitlist'}
                   </button>
                 </div>
               </div>

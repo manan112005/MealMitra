@@ -1,59 +1,79 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { useAuth, AuthUser } from '../../context/AuthContext';
+import { useAuth, normalizePhone } from '../../context/AuthContext';
 import { UserRole } from '../../types';
 import {
-  Utensils,
   ChefHat,
   Bike,
+  User,
   ArrowRight,
   ShieldCheck,
-  User,
   Phone,
   Mail,
   Lock,
   HeartHandshake,
   Clock,
-  Upload,
   CheckCircle2,
+  AlertCircle,
+  ArrowLeft,
+  Sparkles,
+  MapPin,
+  UtensilsCrossed,
 } from 'lucide-react';
 
 export const EntryScreen: React.FC = () => {
   const { setRole, setCustomerTab, setCookTab, setDeliveryTab, setAdminTab } = useApp();
-  const { signup, loginWithEmail, loginWithOTP, loginWithGoogle } = useAuth();
-  
+  const {
+    loginWithOTP,
+    loginWithEmail,
+    loginWithGoogle,
+    registerUser,
+    checkPhoneRegistered,
+  } = useAuth();
+
+  // Top Toggle: true = Login, false = Register
   const [isLogin, setIsLogin] = useState(true);
-  
-  // Login State
+
+  // ---------------- LOGIN FLOW STATES ----------------
   const [loginMethod, setLoginMethod] = useState<'otp' | 'email'>('otp');
   const [loginPhone, setLoginPhone] = useState('');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginOtp, setLoginOtp] = useState('');
-  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [loginStep, setLoginStep] = useState<'phone' | 'otp'>('phone');
   const [loginError, setLoginError] = useState('');
+  const [isUnregisteredError, setIsUnregisteredError] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Signup State (Multi-step)
-  const [signupStep, setSignupStep] = useState(1);
+  // ---------------- REGISTER FLOW STATES ----------------
+  // Steps: 1 = Role, 2 = Phone, 3 = OTP, 4 = Details
+  const [regStep, setRegStep] = useState(1);
   const [selectedRole, setSelectedRole] = useState<'customer' | 'cook' | 'delivery'>('customer');
-  
-  // Signup Form Fields
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [address, setAddress] = useState('');
-  const [city, setCity] = useState('');
-  const [foodCategory, setFoodCategory] = useState('Veg');
-  const [vehicleType, setVehicleType] = useState('Bike');
-  const [signupOtp, setSignupOtp] = useState('');
-  const [signupError, setSignupError] = useState('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regOtp, setRegOtp] = useState('');
+  const [isPhoneAlreadyRegistered, setIsPhoneAlreadyRegistered] = useState(false);
+  const [regError, setRegError] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
 
-  React.useEffect(() => {
+  // Registration Form Fields
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [address, setAddress] = useState('');
+  const [city, setCity] = useState('Ahmedabad');
+  const [kitchenName, setKitchenName] = useState('');
+  const [foodCategory, setFoodCategory] = useState('Vegetarian Only');
+  const [vehicleType, setVehicleType] = useState('Motorcycle');
+  const [dietaryPref, setDietaryPref] = useState('Vegetarian');
+  const [fssaiLicense, setFssaiLicense] = useState('');
+  const [drivingLicense, setDrivingLicense] = useState('');
+
+  // Clear errors on tab or step change
+  useEffect(() => {
     setLoginError('');
-    setSignupError('');
-  }, [isLogin, loginMethod, signupStep]);
+    setIsUnregisteredError(false);
+    setRegError('');
+    setIsPhoneAlreadyRegistered(false);
+  }, [isLogin, loginStep, regStep]);
 
   const navigateToRole = (userRole: UserRole) => {
     if (userRole === 'customer') {
@@ -68,97 +88,239 @@ export const EntryScreen: React.FC = () => {
     setRole(userRole);
   };
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  // ---------------- LOGIN HANDLERS ----------------
+  const handleSendLoginOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+    setIsUnregisteredError(false);
+
+    const norm = normalizePhone(loginPhone);
+    if (!norm || norm.length < 10) {
+      setLoginError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
+    setIsLoggingIn(true);
+    try {
+      const { exists } = await checkPhoneRegistered(norm);
+      if (!exists) {
+        setIsUnregisteredError(true);
+        setLoginError('No account found with this phone number. Please register first.');
+        setIsLoggingIn(false);
+        return;
+      }
+
+      // Phone is registered, advance to OTP step
+      setLoginStep('otp');
+      setLoginOtp('');
+    } catch (err) {
+      setLoginError('Unable to verify phone number. Please try again.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleVerifyLoginOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
 
-    if (loginMethod === 'email') {
-      if (!loginEmail || !loginPassword) {
-        setLoginError('Please enter email and password.');
-        return;
-      }
-      const { user, error } = loginWithEmail(loginEmail, loginPassword);
+    if (!loginOtp || loginOtp.length < 4) {
+      setLoginError('Please enter the 4-digit OTP (demo: 1234).');
+      return;
+    }
+
+    setIsLoggingIn(true);
+    try {
+      const { user, error } = await loginWithOTP(loginPhone, loginOtp);
       if (user) {
+        // Automatically route to stored user role dashboard
         navigateToRole(user.role);
       } else {
-        setLoginError(error || 'Invalid credentials.');
+        setLoginError(error || 'Invalid OTP. Please try again.');
       }
-    } else {
-      if (!loginPhone) {
-        setLoginError('Please enter phone number.');
-        return;
-      }
-      setShowOtpModal(true);
+    } catch (err) {
+      setLoginError('Login failed. Please try again.');
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
-  const handleOtpVerify = () => {
+  const handleEmailLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     setLoginError('');
-    if (!loginOtp) {
-      setLoginError('Please enter OTP.');
+
+    if (!loginEmail || !loginPassword) {
+      setLoginError('Please enter both email and password.');
       return;
     }
-    const { user, error } = loginWithOTP(loginPhone, loginOtp);
+
+    const { user, error } = loginWithEmail(loginEmail, loginPassword);
     if (user) {
-      setShowOtpModal(false);
       navigateToRole(user.role);
     } else {
-      setLoginError(error || 'Invalid OTP.');
+      setLoginError(error || 'Invalid credentials.');
     }
   };
 
-  const handleSignupNext = () => {
-    setSignupError('');
-    if (signupStep === 2) {
-      if (!name || !phone || !email || !password || !address || !city) {
-        setSignupError('Please fill in all required fields.');
-        return;
-      }
-      if (password !== confirmPassword) {
-        setSignupError('Passwords do not match.');
-        return;
-      }
-    }
-    setSignupStep(prev => prev + 1);
+  // Switch to Register flow with phone pre-filled
+  const handleSwitchToRegisterFromLogin = () => {
+    setRegPhone(loginPhone);
+    setIsLogin(false);
+    setRegStep(1);
+    setLoginError('');
+    setIsUnregisteredError(false);
   };
 
-  const handleSignupSubmit = (e: React.FormEvent) => {
+  // Switch to Login flow with phone pre-filled
+  const handleSwitchToLoginFromRegister = () => {
+    setLoginPhone(regPhone);
+    setIsLogin(true);
+    setLoginStep('phone');
+    setRegError('');
+    setIsPhoneAlreadyRegistered(false);
+  };
+
+  // Quick filler for demo testing
+  const handleQuickFillLogin = (phoneNum: string) => {
+    setLoginPhone(phoneNum);
+    setLoginStep('phone');
+    setLoginError('');
+    setIsUnregisteredError(false);
+  };
+
+  // ---------------- REGISTER HANDLERS ----------------
+  // Step 1 -> Step 2
+  const handleRoleSelected = () => {
+    setRegStep(2);
+  };
+
+  // Step 2: Validate phone and send OTP
+  const handleSendRegisterOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSignupError('');
-    
-    if (signupOtp.length < 4) {
-      setSignupError('Please enter a valid OTP.');
+    setRegError('');
+    setIsPhoneAlreadyRegistered(false);
+
+    const norm = normalizePhone(regPhone);
+    if (!norm || norm.length < 10) {
+      setRegError('Please enter a valid 10-digit mobile number.');
       return;
     }
 
-    const { success, error } = signup({
-      name,
-      email,
-      phone,
-      password,
-      role: selectedRole,
-      applicationDetails: {
-        address,
-        city,
-        foodCategory: selectedRole === 'cook' ? foodCategory : undefined,
-        vehicleType: selectedRole === 'delivery' ? vehicleType : undefined,
+    setIsRegistering(true);
+    try {
+      const { exists } = await checkPhoneRegistered(norm);
+      if (exists) {
+        setIsPhoneAlreadyRegistered(true);
+        setRegError('This phone number is already registered. Please log in instead.');
+        setIsRegistering(false);
+        return;
       }
-    });
 
-    if (success) {
-      setSignupStep(5); // Success step
-    } else {
-      setSignupError(error || 'Failed to register.');
+      // Phone is available! Advance to Step 3 (Verify OTP)
+      setRegStep(3);
+      setRegOtp('');
+    } catch (err) {
+      setRegError('Failed to verify phone. Please try again.');
+    } finally {
+      setIsRegistering(false);
     }
   };
 
-  const handleAdminLogin = () => {
-    loginWithGoogle();
+  // Step 3: Verify OTP
+  const handleVerifyRegisterOtp = (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegError('');
+
+    if (!regOtp || regOtp.length < 4) {
+      setRegError('Please enter a valid 4-digit verification code.');
+      return;
+    }
+
+    // OTP verified, advance to Step 4 (Complete Details)
+    setRegStep(4);
+  };
+
+  // Step 4: Submit role-specific registration
+  const handleCompleteRegistration = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegError('');
+
+    if (!name.trim()) {
+      setRegError('Please enter your full name.');
+      return;
+    }
+    if (!email.trim() || !email.includes('@')) {
+      setRegError('Please enter a valid email address.');
+      return;
+    }
+    if (!address.trim()) {
+      setRegError(
+        selectedRole === 'cook'
+          ? 'Please enter your kitchen address.'
+          : selectedRole === 'delivery'
+          ? 'Please enter your residential address.'
+          : 'Please enter your delivery address.'
+      );
+      return;
+    }
+    if (!city.trim()) {
+      setRegError('Please enter your city.');
+      return;
+    }
+    if (selectedRole === 'cook' && !kitchenName.trim()) {
+      setRegError('Please enter your kitchen or business name.');
+      return;
+    }
+
+    setIsRegistering(true);
+    try {
+      const applicationDetails: any = {
+        address: address.trim(),
+        city: city.trim(),
+      };
+
+      if (selectedRole === 'customer') {
+        applicationDetails.dietaryPreference = dietaryPref;
+      } else if (selectedRole === 'cook') {
+        applicationDetails.kitchenName = kitchenName.trim();
+        applicationDetails.kitchenAddress = address.trim();
+        applicationDetails.foodCategory = foodCategory;
+        if (fssaiLicense) applicationDetails.fssaiLicense = fssaiLicense.trim();
+      } else if (selectedRole === 'delivery') {
+        applicationDetails.residentialAddress = address.trim();
+        applicationDetails.vehicleType = vehicleType;
+        if (drivingLicense) applicationDetails.drivingLicense = drivingLicense.trim();
+      }
+
+      const { success, user, error } = await registerUser({
+        phone: regPhone,
+        role: selectedRole,
+        name: name.trim(),
+        email: email.trim(),
+        applicationDetails,
+      });
+
+      if (success && user) {
+        // Redirect directly to the correct role dashboard
+        navigateToRole(user.role);
+      } else {
+        setRegError(error || 'Registration failed. Please try again.');
+      }
+    } catch (err) {
+      setRegError('Registration encountered an error. Please try again.');
+    } finally {
+      setIsRegistering(false);
+    }
+  };
+
+  const handleAdminAccess = () => {
+    loginWithGoogle('admin');
     navigateToRole('admin');
   };
 
   return (
     <div className="relative min-h-[calc(100vh-4rem)] w-full bg-[#faf9f8] flex flex-col justify-center overflow-hidden">
+      {/* Background decorations */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#ffdcc5]/20 via-[#faf9f8] to-[#d1e6c9]/20 pointer-events-none" />
       <div
         className="absolute inset-0 opacity-10 bg-cover bg-center pointer-events-none"
@@ -167,10 +329,9 @@ export const EntryScreen: React.FC = () => {
         }}
       />
 
-      <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 lg:py-16">
+      <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-14">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
-          
-          {/* Left Column: Hero Copy */}
+          {/* Left Column: Hero Brand Copy */}
           <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#ffdcc5]/60 border border-[#944a00]/20 text-[#944a00] text-xs font-bold uppercase tracking-widest">
               <span className="w-2 h-2 rounded-full bg-[#944a00] animate-pulse"></span>
@@ -209,12 +370,11 @@ export const EntryScreen: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Column: Interactive Role Selector & Auth Card */}
+          {/* Right Column: Unified Authentication Card */}
           <div className="lg:col-span-5 relative">
             <div className="bg-white rounded-[24px] border border-[#dcc1b1]/60 shadow-[0_12px_40px_rgba(0,0,0,0.06)] p-6 sm:p-8 relative overflow-visible">
               <div className="relative z-10">
-                
-                {/* Top Toggle (Login / Sign Up) */}
+                {/* Clean Top Switch: Login | Register */}
                 <div className="flex p-1 bg-[#faf9f8] rounded-full border border-[#eeeeed] mb-6 relative shadow-inner">
                   <div
                     className={`absolute inset-y-1 w-[calc(50%-4px)] bg-white rounded-full shadow-xs border border-[#eeeeed] transition-transform duration-300 ease-in-out ${
@@ -223,7 +383,10 @@ export const EntryScreen: React.FC = () => {
                   />
                   <button
                     type="button"
-                    onClick={() => { setIsLogin(true); setSignupStep(1); }}
+                    onClick={() => {
+                      setIsLogin(true);
+                      setLoginStep('phone');
+                    }}
                     className={`flex-1 py-2 text-xs font-bold rounded-full relative z-10 transition-colors ${
                       isLogin ? 'text-[#1a1c1c]' : 'text-[#564337]'
                     }`}
@@ -232,18 +395,23 @@ export const EntryScreen: React.FC = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setIsLogin(false)}
+                    onClick={() => {
+                      setIsLogin(false);
+                      setRegStep(1);
+                    }}
                     className={`flex-1 py-2 text-xs font-bold rounded-full relative z-10 transition-colors ${
                       !isLogin ? 'text-[#1a1c1c]' : 'text-[#564337]'
                     }`}
                   >
-                    Partner Sign Up
+                    Register
                   </button>
                 </div>
 
                 {isLogin ? (
-                  // ================= LOGIN FLOW =================
-                  <>
+                  // ==============================================================
+                  // ======================== LOGIN FLOW ==========================
+                  // ==============================================================
+                  <div>
                     <div className="text-center mb-6">
                       <h2 className="text-[22px] font-extrabold text-[#1a1c1c] mb-1">
                         Welcome Back
@@ -253,72 +421,202 @@ export const EntryScreen: React.FC = () => {
                       </p>
                     </div>
 
-                    {/* Role selector removed */}
-
-                    {loginError && (
-                      <div className="p-2.5 mb-4 bg-red-50 text-red-600 text-[11px] font-semibold rounded-lg border border-red-100 text-center">
-                        {loginError}
+                    {/* Unregistered Phone Alert with 1-Click Register Action */}
+                    {isUnregisteredError ? (
+                      <div className="p-3 mb-4 bg-amber-50 border border-amber-200 rounded-xl text-left">
+                        <div className="flex items-start gap-2.5">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-xs font-bold text-amber-900 leading-tight">
+                              Account Not Found
+                            </p>
+                            <p className="text-[11px] text-amber-700 mt-0.5">
+                              No account found with this phone number. Please register first.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={handleSwitchToRegisterFromLogin}
+                              className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#944a00] hover:bg-[#713700] text-white text-xs font-bold rounded-lg shadow-2xs transition-colors"
+                            >
+                              <span>Register as New User</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
                       </div>
+                    ) : (
+                      loginError && (
+                        <div className="p-2.5 mb-4 bg-red-50 text-red-600 text-[11px] font-semibold rounded-lg border border-red-100 text-center">
+                          {loginError}
+                        </div>
+                      )
                     )}
 
-                    <form onSubmit={handleLoginSubmit} className="space-y-4">
-                      {loginMethod === 'otp' ? (
-                        <div className="relative">
-                          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-[#1a1c1c] whitespace-nowrap">
-                            IN +91
+                    {loginMethod === 'otp' ? (
+                      loginStep === 'phone' ? (
+                        // Login Step 1: Phone input
+                        <form onSubmit={handleSendLoginOtp} className="space-y-4">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#564337] mb-1.5">
+                              Registered Phone Number
+                            </label>
+                            <div className="relative">
+                              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-[#1a1c1c] whitespace-nowrap">
+                                IN +91
+                              </div>
+                              <input
+                                type="tel"
+                                maxLength={10}
+                                value={loginPhone}
+                                onChange={(e) => {
+                                  setLoginPhone(e.target.value.replace(/\D/g, ''));
+                                  setLoginError('');
+                                  setIsUnregisteredError(false);
+                                }}
+                                className="w-full pl-[72px] pr-4 py-3.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] transition-all font-medium shadow-2xs"
+                                placeholder="Phone Number"
+                                autoFocus
+                              />
+                            </div>
                           </div>
-                          <input
-                            type="tel"
-                            value={loginPhone}
-                            onChange={(e) => setLoginPhone(e.target.value)}
-                            className="w-full pl-[72px] pr-4 py-3.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] transition-all font-medium shadow-2xs"
-                            placeholder="Phone Number"
-                          />
-                        </div>
+
+                          {/* Quick Demo Credentials for Fast Testing */}
+                          <div className="pt-1">
+                            <div className="text-[10px] font-semibold text-[#564337]/80 mb-1.5 flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-[#944a00]" />
+                              <span>Quick Demo Accounts:</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleQuickFillLogin('9876543210')}
+                                className="px-2 py-1 rounded-md bg-[#d1e6c9]/50 hover:bg-[#d1e6c9] text-[#51634c] text-[10px] font-bold border border-[#51634c]/20 transition-colors"
+                                title="Home Cook: Nirmala Devi"
+                              >
+                                👩🍳 Cook (9876543210)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleQuickFillLogin('9898011223')}
+                                className="px-2 py-1 rounded-md bg-[#d1e4fc]/50 hover:bg-[#d1e4fc] text-[#4e6074] text-[10px] font-bold border border-[#4e6074]/20 transition-colors"
+                                title="Delivery Partner: Ramesh Patel"
+                              >
+                                🚴 Partner (9898011223)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleQuickFillLogin('9825123456')}
+                                className="px-2 py-1 rounded-md bg-[#ffdcc5]/50 hover:bg-[#ffdcc5] text-[#944a00] text-[10px] font-bold border border-[#944a00]/20 transition-colors"
+                                title="Customer: Jay Shah"
+                              >
+                                👤 Customer (9825123456)
+                              </button>
+                            </div>
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={isLoggingIn}
+                            className="w-full py-3.5 bg-[#1a1c1c] hover:bg-[#333] text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 group mt-4 cursor-pointer disabled:opacity-70"
+                          >
+                            <span>{isLoggingIn ? 'Checking Account...' : 'Send OTP'}</span>
+                            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                          </button>
+                        </form>
                       ) : (
-                        <>
-                          <input
-                            type="email"
-                            value={loginEmail}
-                            onChange={(e) => setLoginEmail(e.target.value)}
-                            className="w-full px-4 py-3.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] transition-all font-medium shadow-2xs"
-                            placeholder="Email Address"
-                          />
-                          <input
-                            type="password"
-                            value={loginPassword}
-                            onChange={(e) => setLoginPassword(e.target.value)}
-                            className="w-full px-4 py-3.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] transition-all font-medium shadow-2xs"
-                            placeholder="Password"
-                          />
-                        </>
-                      )}
+                        // Login Step 2: OTP Verification
+                        <form onSubmit={handleVerifyLoginOtp} className="space-y-4">
+                          <div className="p-3 bg-[#faf9f8] rounded-xl border border-[#eeeeed] text-center">
+                            <p className="text-xs text-[#564337]">
+                              Enter OTP sent to <span className="font-bold text-[#1a1c1c]">+91 {loginPhone}</span>
+                            </p>
+                            <p className="text-[10px] text-[#51634c] font-semibold mt-0.5">
+                              💡 Demo Mode: Enter 1234 or any 4 digits
+                            </p>
+                          </div>
 
-                      {/* Inline OTP removed */}
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#564337] mb-1.5 text-center">
+                              Enter 4-Digit OTP
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                maxLength={6}
+                                value={loginOtp}
+                                onChange={(e) => setLoginOtp(e.target.value)}
+                                className="w-full px-4 py-3.5 border border-[#eeeeed] bg-white rounded-xl text-center text-xl font-bold tracking-[0.4em] focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] shadow-2xs"
+                                placeholder="••••"
+                                autoFocus
+                              />
+                            </div>
+                          </div>
 
-                      <button
-                        type="submit"
-                        className="w-full py-3.5 bg-[#1a1c1c] text-white font-bold text-sm rounded-xl shadow-md hover:bg-[#333] transition-all flex items-center justify-center gap-2 group mt-4"
-                      >
-                        <span>
-                          {loginMethod === 'otp' ? 'Send OTP' : 'Login'}
-                        </span>
-                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                      </button>
-                    </form>
+                          <button
+                            type="submit"
+                            disabled={isLoggingIn}
+                            className="w-full py-3.5 bg-[#944a00] hover:bg-[#713700] text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 group cursor-pointer disabled:opacity-70"
+                          >
+                            <span>{isLoggingIn ? 'Verifying...' : 'Verify OTP & Login'}</span>
+                            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                          </button>
 
-                    <div className="flex items-center gap-3 my-6">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLoginStep('phone');
+                              setLoginOtp('');
+                              setLoginError('');
+                            }}
+                            className="w-full text-xs text-[#564337] hover:text-[#1a1c1c] font-medium py-1 text-center"
+                          >
+                            ← Change Phone Number
+                          </button>
+                        </form>
+                      )
+                    ) : (
+                      // Email Login
+                      <form onSubmit={handleEmailLoginSubmit} className="space-y-4">
+                        <input
+                          type="email"
+                          value={loginEmail}
+                          onChange={(e) => setLoginEmail(e.target.value)}
+                          className="w-full px-4 py-3.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] transition-all font-medium shadow-2xs"
+                          placeholder="Email Address"
+                        />
+                        <input
+                          type="password"
+                          value={loginPassword}
+                          onChange={(e) => setLoginPassword(e.target.value)}
+                          className="w-full px-4 py-3.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] transition-all font-medium shadow-2xs"
+                          placeholder="Password"
+                        />
+                        <button
+                          type="submit"
+                          className="w-full py-3.5 bg-[#1a1c1c] hover:bg-[#333] text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 group cursor-pointer"
+                        >
+                          <span>Sign In</span>
+                          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </button>
+                      </form>
+                    )}
+
+                    <div className="flex items-center gap-3 my-5">
                       <div className="flex-1 h-px bg-[#eeeeed]"></div>
                       <span className="text-[9px] uppercase font-bold text-[#564337]/60">OR</span>
                       <div className="flex-1 h-px bg-[#eeeeed]"></div>
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="space-y-2.5">
                       {loginMethod === 'otp' ? (
                         <button
                           type="button"
-                          onClick={() => { setLoginMethod('email'); setLoginError(''); }}
-                          className="w-full flex items-center justify-center gap-2 py-3 bg-white border border-[#eeeeed] hover:bg-[#faf9f8] hover:border-[#dcc1b1] rounded-xl text-[11px] font-bold text-[#564337] transition-all shadow-2xs"
+                          onClick={() => {
+                            setLoginMethod('email');
+                            setLoginError('');
+                            setIsUnregisteredError(false);
+                          }}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 bg-white border border-[#eeeeed] hover:bg-[#faf9f8] hover:border-[#dcc1b1] rounded-xl text-[11px] font-bold text-[#564337] transition-all shadow-2xs cursor-pointer"
                         >
                           <Mail className="w-4 h-4 text-red-500" />
                           <span>Continue with Email</span>
@@ -326,287 +624,546 @@ export const EntryScreen: React.FC = () => {
                       ) : (
                         <button
                           type="button"
-                          onClick={() => { setLoginMethod('otp'); setLoginError(''); }}
-                          className="w-full flex items-center justify-center gap-2 py-3 bg-white border border-[#eeeeed] hover:bg-[#faf9f8] hover:border-[#dcc1b1] rounded-xl text-[11px] font-bold text-[#564337] transition-all shadow-2xs"
+                          onClick={() => {
+                            setLoginMethod('otp');
+                            setLoginError('');
+                            setIsUnregisteredError(false);
+                          }}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 bg-white border border-[#eeeeed] hover:bg-[#faf9f8] hover:border-[#dcc1b1] rounded-xl text-[11px] font-bold text-[#564337] transition-all shadow-2xs cursor-pointer"
                         >
                           <Phone className="w-4 h-4 text-[#944a00]" />
-                          <span>Continue with OTP</span>
+                          <span>Continue with Phone OTP</span>
                         </button>
                       )}
 
                       <button
                         type="button"
                         onClick={() => {
-                          loginWithGoogle(selectedRole);
-                          navigateToRole(selectedRole);
+                          loginWithGoogle('customer');
+                          navigateToRole('customer');
                         }}
-                        className="w-full flex items-center justify-center gap-2 py-3 bg-white border border-[#eeeeed] hover:bg-[#faf9f8] hover:border-[#dcc1b1] rounded-xl text-[11px] font-bold text-[#564337] transition-all shadow-2xs"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-white border border-[#eeeeed] hover:bg-[#faf9f8] hover:border-[#dcc1b1] rounded-xl text-[11px] font-bold text-[#564337] transition-all shadow-2xs cursor-pointer"
                       >
                         <svg className="w-4 h-4" viewBox="0 0 24 24">
-                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                          <path
+                            fill="#4285F4"
+                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                          />
+                          <path
+                            fill="#34A853"
+                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                          />
+                          <path
+                            fill="#FBBC05"
+                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                          />
+                          <path
+                            fill="#EA4335"
+                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                          />
                         </svg>
                         <span>Sign In with Google</span>
                       </button>
                     </div>
-                  </>
+                  </div>
                 ) : (
-                  // ================= SIGNUP FLOW =================
-                  <>
-                    <div className="text-center mb-6">
+                  // ==============================================================
+                  // ======================= REGISTER FLOW ========================
+                  // ==============================================================
+                  <div>
+                    <div className="text-center mb-5">
                       <h2 className="text-[22px] font-extrabold text-[#1a1c1c] mb-1">
-                        Partner Registration
+                        New Registration
                       </h2>
                       <p className="text-[11px] text-[#564337]">
-                        Step {signupStep} of 4: {
-                          signupStep === 1 ? 'Select Role' :
-                          signupStep === 2 ? 'Basic Details' :
-                          signupStep === 3 ? 'Document Uploads' : 'OTP Verification'
-                        }
+                        Step {regStep} of 4:{' '}
+                        <span className="font-bold text-[#1a1c1c]">
+                          {regStep === 1
+                            ? 'Select Role'
+                            : regStep === 2
+                            ? 'Enter Phone Number'
+                            : regStep === 3
+                            ? 'Verify OTP'
+                            : 'Complete Details'}
+                        </span>
                       </p>
                     </div>
 
-                    {signupError && (
-                      <div className="p-2.5 mb-4 bg-red-50 text-red-600 text-[11px] font-semibold rounded-lg border border-red-100 text-center">
-                        {signupError}
+                    {/* Progress Indicator Dots */}
+                    <div className="flex items-center justify-center gap-2 mb-6">
+                      {[1, 2, 3, 4].map((stepNum) => (
+                        <div
+                          key={stepNum}
+                          className={`h-1.5 rounded-full transition-all duration-300 ${
+                            regStep === stepNum
+                              ? 'w-8 bg-[#944a00]'
+                              : regStep > stepNum
+                              ? 'w-4 bg-[#51634c]'
+                              : 'w-4 bg-[#eeeeed]'
+                          }`}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Already Registered Alert with Direct Switch to Login */}
+                    {isPhoneAlreadyRegistered ? (
+                      <div className="p-3 mb-4 bg-amber-50 border border-amber-200 rounded-xl text-left">
+                        <div className="flex items-start gap-2.5">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-xs font-bold text-amber-900 leading-tight">
+                              Phone Number Already Registered
+                            </p>
+                            <p className="text-[11px] text-amber-700 mt-0.5">
+                              This phone number is already registered. Please log in instead.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={handleSwitchToLoginFromRegister}
+                              className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1c1c] hover:bg-[#333] text-white text-xs font-bold rounded-lg shadow-2xs transition-colors"
+                            >
+                              <span>Log in with this number</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
                       </div>
+                    ) : (
+                      regError && (
+                        <div className="p-2.5 mb-4 bg-red-50 text-red-600 text-[11px] font-semibold rounded-lg border border-red-100 text-center">
+                          {regError}
+                        </div>
+                      )
                     )}
 
-                    {signupStep === 1 && (
-                      <div className="space-y-4">
+                    {/* STEP 1: SELECT ROLE */}
+                    {regStep === 1 && (
+                      <div className="space-y-3">
+                        <p className="text-xs text-[#564337] text-center mb-1">
+                          Select the account type you want to create:
+                        </p>
+
+                        {/* Customer Role Option */}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRole('customer')}
+                          className={`w-full flex items-center p-3.5 rounded-2xl border-[1.5px] transition-all cursor-pointer text-left ${
+                            selectedRole === 'customer'
+                              ? 'bg-[#ffdcc5]/30 border-[#944a00] shadow-sm'
+                              : 'bg-white border-[#eeeeed] hover:border-[#ffdcc5]'
+                          }`}
+                        >
+                          <div
+                            className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${
+                              selectedRole === 'customer'
+                                ? 'bg-[#944a00] text-white'
+                                : 'bg-[#faf9f8] text-[#944a00]'
+                            }`}
+                          >
+                            <User className="w-5 h-5" />
+                          </div>
+                          <div className="ml-3.5 flex-1">
+                            <div className="flex items-center justify-between">
+                              <h3 className="font-bold text-[#1a1c1c] text-sm">Customer</h3>
+                              {selectedRole === 'customer' && (
+                                <span className="w-4 h-4 rounded-full bg-[#944a00] text-white flex items-center justify-center text-[10px]">
+                                  ✓
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-[#564337] mt-0.5">
+                              Order homemade meals from verified local home chefs
+                            </p>
+                          </div>
+                        </button>
+
+                        {/* Home Cook Role Option */}
                         <button
                           type="button"
                           onClick={() => setSelectedRole('cook')}
-                          className={`w-full flex items-center p-4 rounded-2xl border-[1.5px] transition-all ${
+                          className={`w-full flex items-center p-3.5 rounded-2xl border-[1.5px] transition-all cursor-pointer text-left ${
                             selectedRole === 'cook'
                               ? 'bg-[#d1e6c9]/30 border-[#51634c] shadow-sm'
                               : 'bg-white border-[#eeeeed] hover:border-[#d1e6c9]'
                           }`}
                         >
-                          <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
-                            selectedRole === 'cook' ? 'bg-[#51634c] text-white' : 'bg-[#faf9f8] text-[#51634c]'
-                          }`}>
-                            <ChefHat className="w-6 h-6" />
+                          <div
+                            className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${
+                              selectedRole === 'cook'
+                                ? 'bg-[#51634c] text-white'
+                                : 'bg-[#faf9f8] text-[#51634c]'
+                            }`}
+                          >
+                            <ChefHat className="w-5 h-5" />
                           </div>
-                          <div className="ml-4 text-left">
-                            <h3 className="font-bold text-[#1a1c1c] text-sm">Home Cook</h3>
-                            <p className="text-[11px] text-[#564337] mt-0.5">Share your homemade meals and earn income</p>
+                          <div className="ml-3.5 flex-1">
+                            <div className="flex items-center justify-between">
+                              <h3 className="font-bold text-[#1a1c1c] text-sm">Home Cook</h3>
+                              {selectedRole === 'cook' && (
+                                <span className="w-4 h-4 rounded-full bg-[#51634c] text-white flex items-center justify-center text-[10px]">
+                                  ✓
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-[#564337] mt-0.5">
+                              Sell homemade meals, publish weekly menus, and earn
+                            </p>
+                          </div>
+                        </button>
+
+                        {/* Delivery Partner Role Option */}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRole('delivery')}
+                          className={`w-full flex items-center p-3.5 rounded-2xl border-[1.5px] transition-all cursor-pointer text-left ${
+                            selectedRole === 'delivery'
+                              ? 'bg-[#d1e4fc]/30 border-[#4e6074] shadow-sm'
+                              : 'bg-white border-[#eeeeed] hover:border-[#d1e4fc]'
+                          }`}
+                        >
+                          <div
+                            className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${
+                              selectedRole === 'delivery'
+                                ? 'bg-[#4e6074] text-white'
+                                : 'bg-[#faf9f8] text-[#4e6074]'
+                            }`}
+                          >
+                            <Bike className="w-5 h-5" />
+                          </div>
+                          <div className="ml-3.5 flex-1">
+                            <div className="flex items-center justify-between">
+                              <h3 className="font-bold text-[#1a1c1c] text-sm">Delivery Partner</h3>
+                              {selectedRole === 'delivery' && (
+                                <span className="w-4 h-4 rounded-full bg-[#4e6074] text-white flex items-center justify-center text-[10px]">
+                                  ✓
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-[#564337] mt-0.5">
+                              Deliver clustered tiffins along efficient local routes
+                            </p>
                           </div>
                         </button>
 
                         <button
                           type="button"
-                          onClick={() => setSelectedRole('delivery')}
-                          className={`w-full flex items-center p-4 rounded-2xl border-[1.5px] transition-all ${
-                            selectedRole === 'delivery'
-                              ? 'bg-blue-50/50 border-[#4e6074] shadow-sm'
-                              : 'bg-white border-[#eeeeed] hover:border-blue-200'
-                          }`}
+                          onClick={handleRoleSelected}
+                          className="w-full py-3.5 bg-[#944a00] hover:bg-[#713700] text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 group mt-5 cursor-pointer"
                         >
-                          <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
-                            selectedRole === 'delivery' ? 'bg-[#4e6074] text-white' : 'bg-[#faf9f8] text-[#4e6074]'
-                          }`}>
-                            <Bike className="w-6 h-6" />
-                          </div>
-                          <div className="ml-4 text-left">
-                            <h3 className="font-bold text-[#1a1c1c] text-sm">Delivery Partner</h3>
-                            <p className="text-[11px] text-[#564337] mt-0.5">Deliver fresh meals and earn per order</p>
-                          </div>
+                          <span>Continue as {selectedRole === 'cook' ? 'Home Cook' : selectedRole === 'delivery' ? 'Delivery Partner' : 'Customer'}</span>
+                          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                         </button>
                       </div>
                     )}
 
-                    {signupStep === 2 && (
-                      <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-                        <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-3 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1]" placeholder="Full Name" />
-                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-3 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1]" placeholder="Email Address" />
-                        <div className="relative">
-                          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-[#1a1c1c]">IN +91</div>
-                          <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full pl-[72px] pr-4 py-3 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1]" placeholder="Phone Number" />
+                    {/* STEP 2: ENTER PHONE NUMBER */}
+                    {regStep === 2 && (
+                      <form onSubmit={handleSendRegisterOtp} className="space-y-4">
+                        <div className="text-center mb-2">
+                          <p className="text-xs text-[#564337]">
+                            Enter your phone number for OTP verification.
+                          </p>
                         </div>
-                        <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} className="w-full px-4 py-3 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1]" placeholder={selectedRole === 'cook' ? 'Kitchen Address' : 'Residential Address'} />
-                        <input type="text" value={city} onChange={(e) => setCity(e.target.value)} className="w-full px-4 py-3 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1]" placeholder="City" />
-                        
-                        {selectedRole === 'cook' && (
-                          <select value={foodCategory} onChange={(e) => setFoodCategory(e.target.value)} className="w-full px-4 py-3 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1]">
-                            <option value="Veg">Vegetarian Only</option>
-                            <option value="Non-Veg">Non-Vegetarian Only</option>
-                            <option value="Both">Both Veg & Non-Veg</option>
-                          </select>
-                        )}
-                        {selectedRole === 'delivery' && (
-                          <select value={vehicleType} onChange={(e) => setVehicleType(e.target.value)} className="w-full px-4 py-3 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1]">
-                            <option value="Bike">Motorcycle</option>
-                            <option value="Scooter">Scooter</option>
-                            <option value="Bicycle">Bicycle</option>
-                            <option value="Electric Vehicle">Electric Vehicle</option>
-                          </select>
-                        )}
 
-                        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-3 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1]" placeholder="Password" />
-                        <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full px-4 py-3 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1]" placeholder="Confirm Password" />
-                      </div>
-                    )}
-
-                    {signupStep === 3 && (
-                      <div className="space-y-4">
-                        <label className="block border-2 border-dashed border-[#dcc1b1] rounded-xl p-6 text-center hover:bg-[#faf9f8] transition-colors cursor-pointer">
-                          <input type="file" className="hidden" accept=".jpg,.jpeg,.png,.pdf" />
-                          <Upload className="w-8 h-8 text-[#564337] mx-auto mb-2" />
-                          <p className="text-sm font-semibold text-[#1a1c1c]">Upload Govt ID (Aadhaar/PAN)</p>
-                          <p className="text-[10px] text-[#564337] mt-1">JPEG, PNG or PDF up to 5MB</p>
-                        </label>
-                        {selectedRole === 'delivery' && (
-                          <label className="block border-2 border-dashed border-[#dcc1b1] rounded-xl p-6 text-center hover:bg-[#faf9f8] transition-colors cursor-pointer">
-                            <input type="file" className="hidden" accept=".jpg,.jpeg,.png,.pdf" />
-                            <Upload className="w-8 h-8 text-[#564337] mx-auto mb-2" />
-                            <p className="text-sm font-semibold text-[#1a1c1c]">Upload Driving License</p>
-                            <p className="text-[10px] text-[#564337] mt-1">JPEG, PNG or PDF up to 5MB</p>
-                          </label>
-                        )}
-                        {selectedRole === 'cook' && (
-                          <label className="block border-2 border-dashed border-[#dcc1b1] rounded-xl p-6 text-center hover:bg-[#faf9f8] transition-colors cursor-pointer">
-                            <input type="file" className="hidden" accept=".jpg,.jpeg,.png,.pdf" />
-                            <Upload className="w-8 h-8 text-[#564337] mx-auto mb-2" />
-                            <p className="text-sm font-semibold text-[#1a1c1c]">Upload FSSAI License (Optional)</p>
-                            <p className="text-[10px] text-[#564337] mt-1">JPEG, PNG or PDF up to 5MB</p>
-                          </label>
-                        )}
-                      </div>
-                    )}
-
-                    {signupStep === 4 && (
-                      <form onSubmit={handleSignupSubmit} className="space-y-4">
-                        <div className="pt-2">
-                          <label className="block text-[9px] font-bold uppercase tracking-wider text-[#564337] mb-2">
-                            Enter 6-Digit OTP sent to {phone}
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-[#564337] mb-1.5">
+                            Mobile Phone Number
                           </label>
                           <div className="relative">
-                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#564337]/50" />
+                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-[#1a1c1c] whitespace-nowrap">
+                              IN +91
+                            </div>
                             <input
-                              type="text"
-                              maxLength={6}
-                              value={signupOtp}
-                              onChange={(e) => setSignupOtp(e.target.value)}
-                              className="w-full pl-11 pr-4 py-3.5 border border-[#eeeeed] bg-white rounded-xl text-sm tracking-[0.5em] font-bold focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] transition-all shadow-2xs"
-                              placeholder="••••••"
+                              type="tel"
+                              maxLength={10}
+                              value={regPhone}
+                              onChange={(e) => {
+                                setRegPhone(e.target.value.replace(/\D/g, ''));
+                                setRegError('');
+                                setIsPhoneAlreadyRegistered(false);
+                              }}
+                              className="w-full pl-[72px] pr-4 py-3.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] transition-all font-medium shadow-2xs"
+                              placeholder="10-digit mobile number"
+                              autoFocus
                             />
                           </div>
                         </div>
+
                         <button
                           type="submit"
-                          className="w-full py-3.5 bg-[#944a00] text-white font-bold text-sm rounded-xl shadow-md hover:bg-[#713700] transition-all flex items-center justify-center gap-2 mt-4"
+                          disabled={isRegistering}
+                          className="w-full py-3.5 bg-[#944a00] hover:bg-[#713700] text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 group mt-4 cursor-pointer disabled:opacity-70"
                         >
-                          Submit Application
+                          <span>{isRegistering ? 'Checking Phone...' : 'Send OTP'}</span>
+                          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setRegStep(1)}
+                          className="w-full text-xs text-[#564337] hover:text-[#1a1c1c] font-medium py-1 text-center"
+                        >
+                          ← Change Role
                         </button>
                       </form>
                     )}
 
-                    {signupStep === 5 && (
-                      <div className="text-center py-6">
-                        <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                        <h3 className="text-xl font-bold text-[#1a1c1c] mb-2">Application Submitted!</h3>
-                        <p className="text-sm text-[#564337] mb-6">
-                          Thank you for joining MealMitra. Your application is under review. You will receive approval confirmation via email and SMS.
-                        </p>
+                    {/* STEP 3: VERIFY OTP */}
+                    {regStep === 3 && (
+                      <form onSubmit={handleVerifyRegisterOtp} className="space-y-4">
+                        <div className="p-3 bg-[#faf9f8] rounded-xl border border-[#eeeeed] text-center">
+                          <p className="text-xs text-[#564337]">
+                            Enter verification code sent to{' '}
+                            <span className="font-bold text-[#1a1c1c]">+91 {regPhone}</span>
+                          </p>
+                          <p className="text-[10px] text-[#51634c] font-semibold mt-0.5">
+                            💡 Demo Mode: Enter 1234 or any 4 digits
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-[#564337] mb-1.5 text-center">
+                            Verification Code (OTP)
+                          </label>
+                          <input
+                            type="text"
+                            maxLength={6}
+                            value={regOtp}
+                            onChange={(e) => setRegOtp(e.target.value)}
+                            className="w-full px-4 py-3.5 border border-[#eeeeed] bg-white rounded-xl text-center text-xl font-bold tracking-[0.4em] focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] shadow-2xs"
+                            placeholder="••••"
+                            autoFocus
+                          />
+                        </div>
+
                         <button
-                          onClick={() => { setIsLogin(true); setSignupStep(1); }}
-                          className="px-6 py-2.5 bg-[#faf9f8] border border-[#eeeeed] rounded-lg text-sm font-semibold text-[#564337] hover:bg-[#eeeeed]"
+                          type="submit"
+                          className="w-full py-3.5 bg-[#944a00] hover:bg-[#713700] text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 group mt-4 cursor-pointer"
                         >
-                          Return to Login
+                          <span>Verify & Proceed to Details</span>
+                          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                         </button>
-                      </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRegStep(2);
+                            setRegOtp('');
+                          }}
+                          className="w-full text-xs text-[#564337] hover:text-[#1a1c1c] font-medium py-1 text-center"
+                        >
+                          ← Change Phone Number
+                        </button>
+                      </form>
                     )}
 
-                    {signupStep < 4 && (
-                      <button
-                        type="button"
-                        onClick={handleSignupNext}
-                        className={`w-full py-3.5 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 group mt-6 ${
-                          selectedRole === 'cook' ? 'bg-[#51634c] hover:bg-[#3a4736]' : 'bg-[#4e6074] hover:bg-[#384554]'
-                        }`}
-                      >
-                        <span>Continue</span>
-                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                      </button>
+                    {/* STEP 4: ROLE-SPECIFIC REGISTRATION DETAILS */}
+                    {regStep === 4 && (
+                      <form onSubmit={handleCompleteRegistration} className="space-y-3.5">
+                        <div className="flex items-center justify-between p-2.5 bg-[#faf9f8] rounded-xl border border-[#eeeeed] mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-[#564337]">Role:</span>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                selectedRole === 'cook'
+                                  ? 'bg-[#d1e6c9] text-[#51634c]'
+                                  : selectedRole === 'delivery'
+                                  ? 'bg-[#d1e4fc] text-[#4e6074]'
+                                  : 'bg-[#ffdcc5] text-[#944a00]'
+                              }`}
+                            >
+                              {selectedRole === 'cook'
+                                ? 'Home Cook'
+                                : selectedRole === 'delivery'
+                                ? 'Delivery Partner'
+                                : 'Customer'}
+                            </span>
+                          </div>
+                          <span className="text-xs font-semibold text-[#1a1c1c]">+91 {regPhone}</span>
+                        </div>
+
+                        <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+                          {/* Common Details */}
+                          <div>
+                            <input
+                              type="text"
+                              value={name}
+                              onChange={(e) => setName(e.target.value)}
+                              className="w-full px-4 py-2.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] shadow-2xs"
+                              placeholder="Full Name *"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <input
+                              type="email"
+                              value={email}
+                              onChange={(e) => setEmail(e.target.value)}
+                              className="w-full px-4 py-2.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] shadow-2xs"
+                              placeholder="Email Address *"
+                              required
+                            />
+                          </div>
+
+                          {/* Role Specific Details */}
+                          {selectedRole === 'cook' && (
+                            <>
+                              <div>
+                                <input
+                                  type="text"
+                                  value={kitchenName}
+                                  onChange={(e) => setKitchenName(e.target.value)}
+                                  className="w-full px-4 py-2.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] shadow-2xs"
+                                  placeholder="Kitchen / Brand Name (e.g. Annapurna Kitchen) *"
+                                  required
+                                />
+                              </div>
+                              <div>
+                                <input
+                                  type="text"
+                                  value={address}
+                                  onChange={(e) => setAddress(e.target.value)}
+                                  className="w-full px-4 py-2.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] shadow-2xs"
+                                  placeholder="Kitchen Address (Apartment, Street) *"
+                                  required
+                                />
+                              </div>
+                              <div>
+                                <select
+                                  value={foodCategory}
+                                  onChange={(e) => setFoodCategory(e.target.value)}
+                                  className="w-full px-4 py-2.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] shadow-2xs"
+                                >
+                                  <option value="Vegetarian Only">Food Type: Vegetarian Only</option>
+                                  <option value="Non-Vegetarian Only">Food Type: Non-Vegetarian Only</option>
+                                  <option value="Both">Food Type: Both Veg & Non-Veg</option>
+                                </select>
+                              </div>
+                              <div>
+                                <input
+                                  type="text"
+                                  value={fssaiLicense}
+                                  onChange={(e) => setFssaiLicense(e.target.value)}
+                                  className="w-full px-4 py-2.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] shadow-2xs"
+                                  placeholder="FSSAI License / Registration No. (Optional)"
+                                />
+                              </div>
+                            </>
+                          )}
+
+                          {selectedRole === 'delivery' && (
+                            <>
+                              <div>
+                                <input
+                                  type="text"
+                                  value={address}
+                                  onChange={(e) => setAddress(e.target.value)}
+                                  className="w-full px-4 py-2.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] shadow-2xs"
+                                  placeholder="Residential Address *"
+                                  required
+                                />
+                              </div>
+                              <div>
+                                <select
+                                  value={vehicleType}
+                                  onChange={(e) => setVehicleType(e.target.value)}
+                                  className="w-full px-4 py-2.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] shadow-2xs"
+                                >
+                                  <option value="Motorcycle">Vehicle: Motorcycle</option>
+                                  <option value="Scooter">Vehicle: Scooter</option>
+                                  <option value="Electric Vehicle">Vehicle: Electric Vehicle</option>
+                                  <option value="Bicycle">Vehicle: Bicycle</option>
+                                </select>
+                              </div>
+                              <div>
+                                <input
+                                  type="text"
+                                  value={drivingLicense}
+                                  onChange={(e) => setDrivingLicense(e.target.value)}
+                                  className="w-full px-4 py-2.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] shadow-2xs"
+                                  placeholder="Driving License Number (Optional)"
+                                />
+                              </div>
+                            </>
+                          )}
+
+                          {selectedRole === 'customer' && (
+                            <>
+                              <div>
+                                <input
+                                  type="text"
+                                  value={address}
+                                  onChange={(e) => setAddress(e.target.value)}
+                                  className="w-full px-4 py-2.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] shadow-2xs"
+                                  placeholder="Delivery Address (Flat, Society, Street) *"
+                                  required
+                                />
+                              </div>
+                              <div>
+                                <select
+                                  value={dietaryPref}
+                                  onChange={(e) => setDietaryPref(e.target.value)}
+                                  className="w-full px-4 py-2.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] shadow-2xs"
+                                >
+                                  <option value="Vegetarian">Diet: Vegetarian</option>
+                                  <option value="Jain">Diet: Pure Jain</option>
+                                  <option value="Non-Vegetarian">Diet: Non-Vegetarian</option>
+                                  <option value="All">Diet: All Foods</option>
+                                </select>
+                              </div>
+                            </>
+                          )}
+
+                          <div>
+                            <input
+                              type="text"
+                              value={city}
+                              onChange={(e) => setCity(e.target.value)}
+                              className="w-full px-4 py-2.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] shadow-2xs"
+                              placeholder="City *"
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={isRegistering}
+                          className="w-full py-3.5 bg-[#944a00] hover:bg-[#713700] text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 group mt-3 cursor-pointer disabled:opacity-70"
+                        >
+                          <span>{isRegistering ? 'Creating Account...' : 'Complete & Open Dashboard'}</span>
+                          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setRegStep(3)}
+                          className="w-full text-xs text-[#564337] hover:text-[#1a1c1c] font-medium py-1 text-center"
+                        >
+                          ← Back to OTP
+                        </button>
+                      </form>
                     )}
-                    
-                    {signupStep > 1 && signupStep < 5 && (
-                      <button
-                        type="button"
-                        onClick={() => setSignupStep(prev => prev - 1)}
-                        className="w-full mt-3 text-xs font-semibold text-[#564337] hover:text-[#1a1c1c]"
-                      >
-                        Back
-                      </button>
-                    )}
-                  </>
+                  </div>
                 )}
 
                 {/* Admin Portal Link */}
-                <div className="absolute -bottom-[68px] left-0 right-0 text-center">
+                <div className="absolute -bottom-[58px] left-0 right-0 text-center">
                   <button
                     type="button"
-                    onClick={handleAdminLogin}
-                    className="inline-flex items-center gap-1.5 text-[10px] text-[#564337]/70 hover:text-[#1a1c1c] transition-colors uppercase font-bold tracking-widest"
+                    onClick={handleAdminAccess}
+                    className="inline-flex items-center gap-1.5 text-[10px] text-[#564337]/70 hover:text-[#1a1c1c] transition-colors uppercase font-bold tracking-widest cursor-pointer"
                   >
                     <ShieldCheck className="w-3.5 h-3.5" />
                     <span>Access Admin Portal</span>
                   </button>
                 </div>
-
               </div>
             </div>
           </div>
         </div>
       </div>
-
-      {/* OTP Verification Modal */}
-      {showOtpModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-[24px] shadow-2xl p-6 sm:p-8 w-full max-w-sm border border-[#eeeeed]">
-            <div className="text-center mb-6">
-              <div className="w-12 h-12 bg-[#ffdcc5]/40 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Lock className="w-5 h-5 text-[#944a00]" />
-              </div>
-              <h3 className="text-xl font-extrabold text-[#1a1c1c] mb-1">Enter OTP</h3>
-              <p className="text-xs text-[#564337]">Sent to +91 {loginPhone}</p>
-            </div>
-            
-            <div className="relative mb-6">
-              <input
-                type="text"
-                maxLength={6}
-                value={loginOtp}
-                onChange={(e) => setLoginOtp(e.target.value)}
-                className="w-full px-4 py-4 border border-[#eeeeed] bg-[#faf9f8] rounded-xl text-2xl tracking-[0.5em] text-center font-bold focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] transition-all shadow-inner"
-                placeholder="••••••"
-                autoFocus
-              />
-            </div>
-            
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowOtpModal(false)}
-                className="flex-1 py-3.5 bg-white text-[#564337] font-bold text-sm rounded-xl border border-[#eeeeed] hover:bg-[#faf9f8] hover:border-[#dcc1b1] transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleOtpVerify}
-                className="flex-1 py-3.5 bg-[#1a1c1c] text-white font-bold text-sm rounded-xl shadow-md hover:bg-[#333] transition-all flex items-center justify-center gap-2"
-              >
-                <span>Verify</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

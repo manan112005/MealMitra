@@ -37,8 +37,10 @@ export type DeliveryTab =
   | 'performance';
 
 export type OrderStatus =
+  | 'Slot Reserved'
   | 'Confirmed'
   | 'Preparing'
+  | 'Meal Ready'
   | 'Ready'
   | 'Picked Up'
   | 'Out for Delivery'
@@ -67,27 +69,37 @@ export interface Meal {
   deliveryEstimateMin: number;
   distanceKm: number;
   isPopular?: boolean;
+  lunchCutoffTime?: string;
+  dinnerCutoffTime?: string;
+  spiceLevel?: 'Mild' | 'Medium' | 'Spicy';
+}
+
+export interface MealSlotItem {
+  mealTitle?: string;
+  recipeTag?: string;
+  special?: string;
+  mainDish: string;
+  dal: string;
+  bread: string;
+  breadQty?: number;
+  breadType?: string;
+  breadGhee?: boolean;
+  rice: string;
+  sides: string[];
+  image?: string;
+  price?: number;
+  timeSlot?: string;
+  maxOrders?: number;
+  dietary?: 'Vegetarian' | 'High Protein' | 'Vegan' | 'Jain' | 'Gluten-Free' | 'Non-Veg';
+  availableFor?: 'Daily orders' | 'Tiffin subscribers' | 'Both';
 }
 
 export interface DayMenuSchedule {
   day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
-  lunch: {
-    mainDish: string;
-    dal: string;
-    bread: string;
-    rice: string;
-    sides: string[];
-    special?: string;
-  };
-  dinner: {
-    mainDish: string;
-    dal: string;
-    bread: string;
-    rice: string;
-    sides: string[];
-    special?: string;
-  };
+  lunch: MealSlotItem;
+  dinner: MealSlotItem;
 }
+
 
 export interface CookProfile {
   id: string;
@@ -113,6 +125,17 @@ export interface CookProfile {
   specialties: string[];
   weeklyMenu: DayMenuSchedule[];
   hygieneRating: string;
+  lunchCutoffTime?: string;
+  dinnerCutoffTime?: string;
+  pickupAddress?: string;
+  certifications?: string[];
+  repeatCustomerRate?: number;
+  aspectRatings?: {
+    flavor: number;
+    spiciness: number;
+    portion: number;
+    punctuality: number;
+  };
 }
 
 export interface Order {
@@ -136,6 +159,10 @@ export interface Order {
   deliveryPartnerId?: string;
   deliveryPartnerName?: string;
   specialNotes?: string;
+  bookingType?: 'one_time' | 'subscription';
+  bookingDate?: string;
+  mealPeriod?: 'Lunch' | 'Dinner';
+  fulfillmentType?: 'Delivery' | 'Pickup';
 }
 
 export interface SubscriptionPlan {
@@ -148,6 +175,31 @@ export interface SubscriptionPlan {
   description: string;
   features: string[];
   isPopular?: boolean;
+}
+
+export interface UpcomingMealSlot {
+  id: string;
+  date: string; // YYYY-MM-DD
+  dayName: string; // "Monday", etc.
+  mealPeriod: 'Lunch' | 'Dinner';
+  mealName: string;
+  status: 'Scheduled' | 'Skipped' | 'Meal Ready' | 'Delivered' | 'Picked Up';
+  cutoffTime: string;
+  isPastCutoff: boolean;
+}
+
+export interface WaitlistEntry {
+  id: string;
+  cookId: string;
+  cookName: string;
+  mealId: string;
+  mealName: string;
+  customerName: string;
+  customerPhone: string;
+  date: string;
+  mealPeriod: 'Lunch' | 'Dinner';
+  createdAt: string;
+  status: 'Waiting' | 'Notified' | 'Booked' | 'Expired';
 }
 
 export interface UserSubscription {
@@ -168,6 +220,7 @@ export interface UserSubscription {
   mealsDeliveredCount: number;
   totalMealsCount: number;
   preferredMeals: string[];
+  upcomingMeals?: UpcomingMealSlot[];
 }
 
 export interface Review {
@@ -177,6 +230,7 @@ export interface Review {
   cookId: string;
   cookName: string;
   mealName: string;
+  dishName?: string;
   rating: number;
   comment: string;
   date: string;

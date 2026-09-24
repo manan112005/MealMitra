@@ -17,7 +17,14 @@ import {
 } from 'lucide-react';
 
 export const CustomerSubscriptions: React.FC = () => {
-  const { userSubscription, updateUserSubscription, subscribeToPlan, cooks, subscriptionPlans } = useApp();
+  const {
+    userSubscription,
+    updateUserSubscription,
+    subscribeToPlan,
+    skipSubscriptionMeal,
+    cooks,
+    subscriptionPlans,
+  } = useApp();
   const [selectedPlanPeriod, setSelectedPlanPeriod] = useState<'Monthly' | 'Yearly'>('Monthly');
   const [selectedCookId, setSelectedCookId] = useState<string>('cook-1');
 
@@ -238,6 +245,68 @@ export const CustomerSubscriptions: React.FC = () => {
               <div className="text-[11px] text-[#1a1c1c] font-semibold mt-0.5 truncate">
                 🏡 Dinner: {userSubscription.deliveryAddress}
               </div>
+            </div>
+          </div>
+
+          {/* Upcoming Subscription Meals & Skip Slot Section (Doc 3 §2) */}
+          <div className="pt-4 border-t border-[#eeeeed] space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <div className="font-bold text-xs text-[#1a1c1c] flex items-center gap-1.5">
+                <CalendarDays className="w-4 h-4 text-[#944a00]" />
+                <span>Upcoming Scheduled Tiffins & Slot Release</span>
+              </div>
+              <span className="text-[11px] text-[#564337]">
+                Chef's Skip Cutoff: <strong>10:30 AM (Lunch) / 5:30 PM (Dinner)</strong>
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {(userSubscription.upcomingMeals || []).map((slot) => (
+                <div
+                  key={slot.id}
+                  className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 transition-all ${
+                    slot.status === 'Skipped'
+                      ? 'bg-[#faf9f8] border-dashed border-gray-300 opacity-60'
+                      : 'bg-white border-[#dcc1b1]/50 shadow-2xs'
+                  }`}
+                >
+                  <div className="space-y-0.5 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-xs text-[#1a1c1c]">{slot.date} ({slot.dayName})</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        slot.status === 'Skipped' 
+                          ? 'bg-amber-100 text-amber-900' 
+                          : 'bg-[#d1e6c9] text-[#51634c]'
+                      }`}>
+                        {slot.status === 'Skipped' ? 'Slot Released' : slot.mealPeriod}
+                      </span>
+                    </div>
+                    <div className="text-xs text-[#564337] truncate">{slot.mealName}</div>
+                    <div className="text-[10px] text-[#564337]">
+                      Cutoff deadline: {slot.cutoffTime}
+                    </div>
+                  </div>
+
+                  <div className="shrink-0">
+                    {slot.status === 'Skipped' ? (
+                      <span className="text-[11px] font-semibold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
+                        Released to Waitlist
+                      </span>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          if (window.confirm(`Skip ${slot.dayName}'s ${slot.mealPeriod}? This slot will be released back to the kitchen pool for waitlisted customers.`)) {
+                            await skipSubscriptionMeal(slot.id, slot.date, slot.mealPeriod);
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-[#faf9f8] hover:bg-amber-50 text-amber-900 border border-amber-300 text-xs font-bold rounded-lg transition-colors shadow-2xs"
+                      >
+                        Skip & Release
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

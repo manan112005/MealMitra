@@ -60,6 +60,13 @@ const MainLayout: React.FC = () => {
 
   const { currentUser } = useAuth();
 
+  // Ensure authenticated user role is preserved on page refresh
+  React.useEffect(() => {
+    if (currentUser && role === 'entry') {
+      setRole(currentUser.role);
+    }
+  }, [currentUser, role, setRole]);
+
   return (
     <div className="min-h-screen bg-[#faf9f8] flex flex-col font-sans text-[#1a1c1c] selection:bg-[#ffdcc5] selection:text-[#944a00]">
       {/* Top Universal App Header */}
@@ -155,7 +162,6 @@ const MainLayout: React.FC = () => {
               <>
                 {deliveryTab === 'dashboard' && <DeliveryDashboard />}
                 {deliveryTab === 'deliveries' && <DeliveryRouteCluster />}
-                {deliveryTab === 'route' && <DeliveryRouteCluster />}
                 {deliveryTab === 'pickup' && <DeliveryPickups />}
                 {deliveryTab === 'active' && <DeliveryActive />}
                 {deliveryTab === 'history' && <DeliveryHistoryEarnings defaultTab="history" />}

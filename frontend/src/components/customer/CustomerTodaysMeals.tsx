@@ -48,10 +48,10 @@ export const CustomerTodaysMeals: React.FC = () => {
         <div>
           <h2 className="text-2xl font-extrabold text-[#1a1c1c] tracking-tight flex items-center gap-2">
             <Flame className="w-6 h-6 text-[#944a00]" />
-            <span>Today's Fresh Homemade Meals</span>
+            <span>Today's Fresh Homemade Tiffins</span>
           </h2>
           <p className="text-xs sm:text-sm text-[#564337]">
-            Prepared fresh by neighborhood home chefs. Order early before kitchen daily capacities sell out.
+            Prepared fresh by neighborhood home chefs in finite daily batches. Reserve early before kitchen slot capacities fill up.
           </p>
         </div>
 
@@ -195,19 +195,22 @@ export const CustomerTodaysMeals: React.FC = () => {
                 <div className="text-[11px]">
                   {meal.availableQty > 0 ? (
                     <span className="text-[#51634c] font-bold">
-                      ● {meal.availableQty} ready
+                      ● {meal.availableQty} slots left
                     </span>
                   ) : (
-                    <span className="text-red-500 font-bold">● Kitchen Sold Out</span>
+                    <span className="text-amber-800 font-bold">● Capacity Full</span>
                   )}
                 </div>
 
                 <button
-                  disabled={meal.availableQty < 1}
                   onClick={() => setSelectedMealForOrder(meal)}
-                  className="px-4 py-2 bg-[#944a00] hover:bg-[#713700] disabled:bg-gray-200 disabled:text-gray-500 text-white text-xs font-bold rounded-xl transition-all shadow-xs active:scale-95"
+                  className={`px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-xs active:scale-95 ${
+                    meal.availableQty > 0
+                      ? 'bg-[#944a00] hover:bg-[#713700] text-white'
+                      : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
+                  }`}
                 >
-                  {meal.availableQty > 0 ? 'Order Meal' : 'Sold Out'}
+                  {meal.availableQty > 0 ? 'Reserve Slot' : 'Join Waitlist'}
                 </button>
               </div>
             </div>

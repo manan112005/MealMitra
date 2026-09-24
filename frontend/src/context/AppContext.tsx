@@ -16,6 +16,9 @@ import {
   RouteStop,
   DeliveryPartnerState,
   DayMenuSchedule,
+  MealSlotItem,
+  WaitlistEntry,
+  UpcomingMealSlot,
 } from '../types';
 import {
   MOCK_COOKS,
@@ -28,6 +31,7 @@ import {
   MOCK_SMART_CLUSTER_STOPS,
   MOCK_DELIVERY_PARTNER_STATE,
   MOCK_ROUTE_STOPS,
+  INITIAL_WEEKLY_MENU,
 } from '../data/mockData';
 
 interface AppContextType {
@@ -62,6 +66,8 @@ interface AppContextType {
   routeStops: RouteStop[];
   deliveryPartnerState: DeliveryPartnerState;
 
+  waitlist: WaitlistEntry[];
+
   // Active Cook logged in state
   activeCookId: string;
   setActiveCookId: (id: string) => void;
@@ -76,7 +82,22 @@ interface AppContextType {
     phone: string;
     timeSlot: string;
     specialNotes?: string;
+    bookingDate?: string;
+    mealPeriod?: 'Lunch' | 'Dinner';
+    fulfillmentType?: 'Delivery' | 'Pickup';
+    bookingType?: 'one_time' | 'subscription';
   }) => string;
+  joinWaitlist: (data: {
+    cookId: string;
+    cookName: string;
+    mealId: string;
+    mealName: string;
+    customerName: string;
+    customerPhone: string;
+    date: string;
+    mealPeriod: 'Lunch' | 'Dinner';
+  }) => Promise<string>;
+  skipSubscriptionMeal: (slotId: string, date: string, mealPeriod: 'Lunch' | 'Dinner') => Promise<boolean>;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
   updateKitchenStatus: (cookId: string, open: boolean) => void;
   updateKitchenQuantities: (
@@ -87,6 +108,18 @@ interface AppContextType {
     dinnerTotal: number
   ) => void;
   updateCookWeeklyMenu: (cookId: string, day: string, mealType: 'lunch' | 'dinner', menuData: any) => void;
+  updateCookWeeklyMenuSlot: (
+    cookId: string,
+    days: string[],
+    mealType: 'lunch' | 'dinner',
+    mealData: MealSlotItem
+  ) => void;
+  removeCookWeeklyMealSlot: (
+    cookId: string,
+    day: string,
+    mealType: 'lunch' | 'dinner'
+  ) => void;
+  autofillCookWeeklyMenu: (cookId: string) => void;
   updateCookProfile: (cookId: string, updated: Partial<CookProfile>) => void;
   updateUserSubscription: (updated: Partial<UserSubscription>) => void;
   subscribeToPlan: (plan: SubscriptionPlan, details: { address: string; lunchTiming: string; dinnerTiming: string }) => void;
@@ -166,6 +199,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : MOCK_ROUTE_STOPS;
   });
 
+  const [waitlist, setWaitlist] = useState<WaitlistEntry[]>(() => {
+    const saved = localStorage.getItem('mealmitra_waitlist');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [activeCookId, setActiveCookId] = useState<string>('cook-1');
 
   const setRole = (newRole: UserRole) => {
@@ -212,6 +250,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('mealmitra_route_stops', JSON.stringify(routeStops));
   }, [routeStops]);
 
+  useEffect(() => {
+    localStorage.setItem('mealmitra_waitlist', JSON.stringify(waitlist));
+  }, [waitlist]);
+
   const currentCookProfile =
     (cooks && cooks.find((c) => c.id === activeCookId)) ||
     (cooks && cooks[0]) ||
@@ -240,8 +282,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     phone: string;
     timeSlot: string;
     specialNotes?: string;
+    bookingDate?: string;
+    mealPeriod?: 'Lunch' | 'Dinner';
+    fulfillmentType?: 'Delivery' | 'Pickup';
+    bookingType?: 'one_time' | 'subscription';
   }) => {
     const newOrderId = `MM-${Math.floor(1000 + Math.random() * 9000)}`;
+    const isPickup = orderData.fulfillmentType === 'Pickup';
+    const chosenPeriod = orderData.mealPeriod || (orderData.meal.category === 'Dinner' ? 'Dinner' : 'Lunch');
+    const chosenDate = orderData.bookingDate || 'Today';
+
     const newOrder: Order = {
       id: newOrderId,
       cookId: orderData.meal.cookId,
@@ -249,19 +299,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cookAvatar: orderData.meal.cookAvatar,
       customerName: 'Jay Shah',
       customerPhone: orderData.phone || '+91 99250 12345',
-      customerAddress: orderData.address || 'Flat 402, Shivalik Heights, Bodakdev',
+      customerAddress: isPickup
+        ? `${orderData.meal.cookName}'s Kitchen (Self Pickup)`
+        : orderData.address || 'Flat 402, Shivalik Heights, Bodakdev',
       mealId: orderData.meal.id,
       mealName: orderData.meal.name,
       mealImage: orderData.meal.image,
       quantity: orderData.quantity,
       pricePerUnit: orderData.meal.price,
       totalAmount: orderData.meal.price * orderData.quantity,
-      orderDate: 'Today',
+      orderDate: chosenDate,
       orderTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       deliveryTimeSlot: orderData.timeSlot,
       status: 'Confirmed',
-      deliveryPartnerName: 'Ramesh Patel',
+      deliveryPartnerName: isPickup ? 'Direct Kitchen Pickup' : 'Ramesh Patel',
       specialNotes: orderData.specialNotes,
+      bookingType: orderData.bookingType || 'one_time',
+      bookingDate: chosenDate,
+      mealPeriod: chosenPeriod,
+      fulfillmentType: orderData.fulfillmentType || 'Delivery',
     };
 
     setOrders((prev) => [newOrder, ...prev]);
@@ -279,16 +335,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
-    // Decrease cook available qty
+    // Decrease cook available qty according to meal period
     setCooks((prev) =>
       prev.map((c) => {
         if (c.id === orderData.meal.cookId) {
-          const isLunch = orderData.meal.category === 'Lunch' || orderData.meal.category === 'Both';
+          const isLunch = chosenPeriod === 'Lunch';
           return {
             ...c,
             lunchAvailableQty: isLunch
               ? Math.max(0, c.lunchAvailableQty - orderData.quantity)
               : c.lunchAvailableQty,
+            dinnerAvailableQty: !isLunch
+              ? Math.max(0, c.dinnerAvailableQty - orderData.quantity)
+              : c.dinnerAvailableQty,
             mealsDelivered: c.mealsDelivered + 1,
           };
         }
@@ -296,29 +355,139 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
-    // Add to delivery assignments
-    const newDelivery: DeliveryAssignment = {
-      id: `del-${Math.floor(200 + Math.random() * 800)}`,
-      orderId: newOrderId,
-      customerName: newOrder.customerName,
-      customerPhone: newOrder.customerPhone,
-      deliveryAddress: newOrder.customerAddress,
-      cookId: orderData.meal.cookId,
-      cookName: orderData.meal.cookName,
-      pickupAddress: orderData.meal.cookName + ' Kitchen, Navrangpura',
-      mealName: `${orderData.meal.name} (${orderData.quantity} Qty)`,
-      quantity: orderData.quantity,
-      distanceKm: 2.1,
-      estimatedTimeMin: 20,
-      earningAmount: 60,
-      status: 'Assigned',
-      pickupTimeWindow: 'Within 20 mins',
-      deliveryTimeWindow: orderData.timeSlot,
-    };
+    // If Delivery is chosen, register delivery assignment
+    if (!isPickup) {
+      const newDelivery: DeliveryAssignment = {
+        id: `del-${Math.floor(200 + Math.random() * 800)}`,
+        orderId: newOrderId,
+        customerName: newOrder.customerName,
+        customerPhone: newOrder.customerPhone,
+        deliveryAddress: newOrder.customerAddress,
+        cookId: orderData.meal.cookId,
+        cookName: orderData.meal.cookName,
+        pickupAddress: orderData.meal.cookName + ' Kitchen, Navrangpura',
+        mealName: `${orderData.meal.name} (${orderData.quantity} Qty)`,
+        quantity: orderData.quantity,
+        distanceKm: 2.1,
+        estimatedTimeMin: 20,
+        earningAmount: 60,
+        status: 'Assigned',
+        pickupTimeWindow: 'Within 20 mins',
+        deliveryTimeWindow: orderData.timeSlot,
+      };
 
-    setDeliveryAssignments((prev) => [newDelivery, ...prev]);
+      setDeliveryAssignments((prev) => [newDelivery, ...prev]);
+    }
+
+    // Backend sync with SQLite
+    fetch('http://localhost:3001/api/reservations/reserve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        reservationId: newOrderId,
+        cookId: orderData.meal.cookId,
+        mealId: orderData.meal.id,
+        bookingType: orderData.bookingType || 'one_time',
+        bookingDate: chosenDate,
+        mealPeriod: chosenPeriod,
+        fulfillmentType: orderData.fulfillmentType || 'Delivery',
+        quantity: orderData.quantity,
+        address: newOrder.customerAddress,
+        phone: newOrder.customerPhone,
+        timeSlot: orderData.timeSlot,
+        specialNotes: orderData.specialNotes,
+        totalAmount: newOrder.totalAmount,
+      }),
+    }).catch(() => {
+      // Backend optional / offline fallback
+    });
 
     return newOrderId;
+  };
+
+  const joinWaitlist = async (data: {
+    cookId: string;
+    cookName: string;
+    mealId: string;
+    mealName: string;
+    customerName: string;
+    customerPhone: string;
+    date: string;
+    mealPeriod: 'Lunch' | 'Dinner';
+  }) => {
+    const newWaitlistId = `WL-${Math.floor(1000 + Math.random() * 9000)}`;
+    const newEntry: WaitlistEntry = {
+      id: newWaitlistId,
+      ...data,
+      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: 'Waiting',
+    };
+    setWaitlist((prev) => [newEntry, ...prev]);
+
+    try {
+      await fetch('http://localhost:3001/api/reservations/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cookId: data.cookId,
+          mealId: data.mealId,
+          customerName: data.customerName,
+          customerPhone: data.customerPhone,
+          bookingDate: data.date,
+          mealPeriod: data.mealPeriod,
+        }),
+      });
+    } catch (err) {
+      console.warn('Waitlist backend sync note:', err);
+    }
+    return newWaitlistId;
+  };
+
+  const skipSubscriptionMeal = async (slotId: string, date: string, mealPeriod: 'Lunch' | 'Dinner') => {
+    if (!userSubscription) return false;
+
+    const updatedUpcoming = (userSubscription.upcomingMeals || []).map((m) => {
+      if (m.id === slotId) {
+        return { ...m, status: 'Skipped' as const };
+      }
+      return m;
+    });
+
+    setUserSubscription({
+      ...userSubscription,
+      upcomingMeals: updatedUpcoming,
+    });
+
+    // Release slot back to chef available pool
+    setCooks((prev) =>
+      prev.map((c) => {
+        if (c.name === userSubscription.cookName) {
+          return {
+            ...c,
+            lunchAvailableQty: mealPeriod === 'Lunch' ? c.lunchAvailableQty + 1 : c.lunchAvailableQty,
+            dinnerAvailableQty: mealPeriod === 'Dinner' ? c.dinnerAvailableQty + 1 : c.dinnerAvailableQty,
+          };
+        }
+        return c;
+      })
+    );
+
+    try {
+      await fetch('http://localhost:3001/api/subscriptions/skip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscriptionId: userSubscription.id,
+          cookId: cooks.find((c) => c.name === userSubscription.cookName)?.id || 'cook-1',
+          date,
+          mealPeriod,
+        }),
+      });
+    } catch (err) {
+      console.warn('Skip sync note:', err);
+    }
+
+    return true;
   };
 
   const updateOrderStatus = (orderId: string, status: Order['status']) => {
@@ -376,7 +545,149 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     mealType: 'lunch' | 'dinner',
     menuData: any
   ) => {
-    // Legacy support
+    updateCookWeeklyMenuSlot(cookId, [day], mealType, menuData);
+  };
+
+  const updateCookWeeklyMenuSlot = (
+    cookId: string,
+    days: string[],
+    mealType: 'lunch' | 'dinner',
+    mealData: MealSlotItem
+  ) => {
+    setCooks((prevCooks) =>
+      prevCooks.map((c) => {
+        if (c.id !== cookId) return c;
+        const currentMenu = Array.isArray(c.weeklyMenu) && c.weeklyMenu.length === 7
+          ? [...c.weeklyMenu]
+          : JSON.parse(JSON.stringify(INITIAL_WEEKLY_MENU));
+
+        const updatedMenu = currentMenu.map((dayItem) => {
+          if (!days.includes(dayItem.day)) return dayItem;
+          return {
+            ...dayItem,
+            [mealType]: {
+              ...dayItem[mealType],
+              ...mealData,
+              special: mealData.recipeTag || mealData.special || dayItem[mealType]?.special || '',
+            },
+          };
+        });
+        return { ...c, weeklyMenu: updatedMenu };
+      })
+    );
+
+    // Sync with meals collection so customer views & search also reflect the updated meal
+    const category = mealType === 'lunch' ? 'Lunch' : 'Dinner';
+    const mealTitle = mealData.mealTitle || `${mealData.mainDish} Meal`;
+    const cook = cooks.find((c) => c.id === cookId) || currentCookProfile;
+
+    setMeals((prevMeals) => {
+      const existingMeal = prevMeals.find(
+        (m) => m.cookId === cookId && m.category === category && m.availableDays?.some((d) => days.includes(d))
+      );
+
+      const itemsIncluded = [
+        mealData.mainDish,
+        mealData.dal,
+        mealData.bread,
+        mealData.rice,
+        ...(mealData.sides || []),
+      ].filter(Boolean);
+
+      const description = `Freshly prepared meal with ${mealData.bread}, ${mealData.dal}, ${mealData.mainDish}, and ${mealData.rice}.${
+        mealData.sides?.length ? ` Includes: ${mealData.sides.join(', ')}.` : ''
+      }`;
+
+      if (existingMeal) {
+        return prevMeals.map((m) =>
+          m.id === existingMeal.id
+            ? {
+                ...m,
+                name: mealTitle,
+                description,
+                price: mealData.price || m.price,
+                dietary: mealData.dietary || m.dietary,
+                timeSlot: mealData.timeSlot || m.timeSlot,
+                availableDays: Array.from(new Set([...(m.availableDays || []), ...days])),
+                itemsIncluded,
+                image: mealData.image || m.image,
+                totalQty: mealData.maxOrders || m.totalQty,
+                availableQty: mealData.maxOrders || m.availableQty,
+              }
+            : m
+        );
+      } else {
+        const newMeal: Meal = {
+          id: `meal-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          name: mealTitle,
+          description,
+          cookId,
+          cookName: cook.name,
+          cookAvatar: cook.avatar,
+          price: mealData.price || 180,
+          category,
+          timeSlot: mealData.timeSlot || (mealType === 'lunch' ? '12:30 PM - 2:00 PM' : '7:30 PM - 9:00 PM'),
+          availableDays: days,
+          dietary: mealData.dietary || 'Vegetarian',
+          image: mealData.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80',
+          rating: 4.8,
+          reviewsCount: 14,
+          itemsIncluded,
+          calories: 520,
+          availableQty: mealData.maxOrders || 20,
+          totalQty: mealData.maxOrders || 20,
+          deliveryEstimateMin: 30,
+          distanceKm: cook.distanceKm || 1.2,
+        };
+        return [newMeal, ...prevMeals];
+      }
+    });
+  };
+
+  const removeCookWeeklyMealSlot = (
+    cookId: string,
+    day: string,
+    mealType: 'lunch' | 'dinner'
+  ) => {
+    setCooks((prevCooks) =>
+      prevCooks.map((c) => {
+        if (c.id !== cookId) return c;
+        const currentMenu = Array.isArray(c.weeklyMenu)
+          ? [...c.weeklyMenu]
+          : JSON.parse(JSON.stringify(INITIAL_WEEKLY_MENU));
+
+        const updatedMenu = currentMenu.map((dayItem) => {
+          if (dayItem.day !== day) return dayItem;
+          return {
+            ...dayItem,
+            [mealType]: {
+              mainDish: '',
+              dal: '',
+              bread: '',
+              rice: '',
+              sides: [],
+              mealTitle: '',
+              recipeTag: '',
+              special: '',
+              price: 0,
+            },
+          };
+        });
+        return { ...c, weeklyMenu: updatedMenu };
+      })
+    );
+  };
+
+  const autofillCookWeeklyMenu = (cookId: string) => {
+    setCooks((prevCooks) =>
+      prevCooks.map((c) => {
+        if (c.id !== cookId) return c;
+        return {
+          ...c,
+          weeklyMenu: JSON.parse(JSON.stringify(INITIAL_WEEKLY_MENU)),
+        };
+      })
+    );
   };
 
   const addMeal = (mealData: Omit<Meal, 'id'>) => {
@@ -552,15 +863,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clusterStops,
         routeStops,
         deliveryPartnerState,
+        waitlist,
         activeCookId,
         setActiveCookId,
         currentCookProfile,
         toggleFollowCook,
         placeOrder,
+        joinWaitlist,
+        skipSubscriptionMeal,
         updateOrderStatus,
         updateKitchenStatus,
         updateKitchenQuantities,
         updateCookWeeklyMenu,
+        updateCookWeeklyMenuSlot,
+        removeCookWeeklyMealSlot,
+        autofillCookWeeklyMenu,
         updateCookProfile,
         updateUserSubscription,
         subscribeToPlan,

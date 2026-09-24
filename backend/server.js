@@ -60,6 +60,117 @@ const db = new sqlite3.Database(dbPath, (err) => {
         status TEXT,
         FOREIGN KEY(payment_id) REFERENCES payments(id)
       )`);
+
+      db.run(`CREATE TABLE IF NOT EXISTS reservations (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        cook_id TEXT,
+        meal_id TEXT,
+        booking_type TEXT,
+        booking_date TEXT,
+        meal_period TEXT,
+        fulfillment_type TEXT,
+        quantity INTEGER,
+        status TEXT,
+        address TEXT,
+        phone TEXT,
+        time_slot TEXT,
+        special_notes TEXT,
+        total_amount INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`);
+
+      db.run(`CREATE TABLE IF NOT EXISTS waitlist (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        customer_name TEXT,
+        customer_phone TEXT,
+        cook_id TEXT,
+        meal_id TEXT,
+        booking_date TEXT,
+        meal_period TEXT,
+        status TEXT DEFAULT 'Waiting',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`);
+
+      db.run(`CREATE TABLE IF NOT EXISTS chef_capacities (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cook_id TEXT,
+        slot_date TEXT,
+        meal_period TEXT,
+        total_capacity INTEGER,
+        subscription_allocated INTEGER DEFAULT 0,
+        reserved_count INTEGER DEFAULT 0,
+        cutoff_time TEXT,
+        UNIQUE(cook_id, slot_date, meal_period)
+      )`);
+
+      db.run(`CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        email TEXT,
+        phone TEXT UNIQUE,
+        role TEXT,
+        status TEXT DEFAULT 'approved',
+        avatar TEXT,
+        details TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`);
+
+      // Seed default accounts if users table is empty
+      db.get(`SELECT COUNT(*) as count FROM users`, (err, row) => {
+        if (!err && row && row.count === 0) {
+          const defaultSeedUsers = [
+            {
+              id: 'usr-cook-1',
+              name: 'Nirmala Devi',
+              email: 'nirmala.kitchen@example.com',
+              phone: '9876543210',
+              role: 'cook',
+              status: 'approved',
+              avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+              details: JSON.stringify({ kitchenAddress: 'B-12 Krishna Kunj, Sector 14, Navrangpura', city: 'Ahmedabad', foodCategory: 'Vegetarian Only' })
+            },
+            {
+              id: 'usr-delivery-1',
+              name: 'Ramesh Patel',
+              email: 'ramesh.delivery@example.com',
+              phone: '9898011223',
+              role: 'delivery',
+              status: 'approved',
+              avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+              details: JSON.stringify({ residentialAddress: 'C-104, Shanti Nagar, SG Highway', city: 'Ahmedabad', vehicleType: 'Motorcycle' })
+            },
+            {
+              id: 'usr-cust-1',
+              name: 'Jay Shah',
+              email: 'jay.shah@example.com',
+              phone: '9825123456',
+              role: 'customer',
+              status: 'approved',
+              avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+              details: JSON.stringify({ address: 'A-402, Shivalik Residency, Navrangpura', city: 'Ahmedabad' })
+            },
+            {
+              id: 'usr-admin-1',
+              name: 'Admin Manager',
+              email: 'admin@mealmitra.com',
+              phone: '9999999999',
+              role: 'admin',
+              status: 'approved',
+              avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+              details: JSON.stringify({})
+            }
+          ];
+
+          const stmt = db.prepare(`INSERT OR IGNORE INTO users (id, name, email, phone, role, status, avatar, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
+          for (const u of defaultSeedUsers) {
+            stmt.run([u.id, u.name, u.email, u.phone, u.role, u.status, u.avatar, u.details]);
+          }
+          stmt.finalize();
+          console.log('Seeded default MealMitra users into SQLite database.');
+        }
+      });
     });
   }
 });
@@ -85,6 +196,15 @@ const getQuery = (query, params) => {
     db.get(query, params, (err, row) => {
       if (err) reject(err);
       else resolve(row);
+    });
+  });
+};
+
+const allQuery = (query, params) => {
+  return new Promise((resolve, reject) => {
+    db.all(query, params, (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows);
     });
   });
 };
@@ -229,6 +349,352 @@ app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), asy
   }
 });
 
+// --- Capacity-Aware Reservations & Waitlist Endpoints ---
+
+// 4. Check Slot Capacity & Cutoff
+app.post('/api/reservations/check-capacity', async (req, res) => {
+  try {
+    const { cookId, date, mealPeriod, quantity = 1 } = req.body;
+    const targetDate = date || new Date().toISOString().split('T')[0];
+    const period = mealPeriod || 'Lunch';
+
+    let row = await getQuery(
+      `SELECT * FROM chef_capacities WHERE cook_id = ? AND slot_date = ? AND meal_period = ?`,
+      [cookId, targetDate, period]
+    );
+
+    if (!row) {
+      // Initialize default capacity for this slot (e.g., 40 total, 15 pre-allocated/reserved)
+      const defaultTotal = period === 'Lunch' ? 50 : 40;
+      const defaultAllocated = 10;
+      const defaultReserved = 15;
+      const defaultCutoff = period === 'Lunch' ? '10:30 AM' : '05:30 PM';
+
+      await runQuery(
+        `INSERT INTO chef_capacities (cook_id, slot_date, meal_period, total_capacity, subscription_allocated, reserved_count, cutoff_time)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [cookId, targetDate, period, defaultTotal, defaultAllocated, defaultReserved, defaultCutoff]
+      );
+
+      row = {
+        cook_id: cookId,
+        slot_date: targetDate,
+        meal_period: period,
+        total_capacity: defaultTotal,
+        subscription_allocated: defaultAllocated,
+        reserved_count: defaultReserved,
+        cutoff_time: defaultCutoff,
+      };
+    }
+
+    const availableSlots = Math.max(0, row.total_capacity - row.subscription_allocated - row.reserved_count);
+    const canBook = availableSlots >= quantity;
+
+    res.status(200).json({
+      cookId,
+      date: targetDate,
+      mealPeriod: period,
+      totalCapacity: row.total_capacity,
+      subscriptionAllocated: row.subscription_allocated,
+      reservedCount: row.reserved_count,
+      availableSlots,
+      canBook,
+      cutoffTime: row.cutoff_time || (period === 'Lunch' ? '10:30 AM' : '05:30 PM'),
+    });
+  } catch (error) {
+    console.error('Error checking capacity:', error);
+    res.status(500).json({ error: 'Failed to check capacity' });
+  }
+});
+
+// 5. Reserve Tiffin Slot
+app.post('/api/reservations/reserve', async (req, res) => {
+  try {
+    const {
+      reservationId,
+      userId = 'user_123',
+      cookId,
+      mealId,
+      bookingType = 'one_time',
+      bookingDate,
+      mealPeriod = 'Lunch',
+      fulfillmentType = 'Delivery',
+      quantity = 1,
+      address,
+      phone,
+      timeSlot,
+      specialNotes,
+      totalAmount,
+    } = req.body;
+
+    const id = reservationId || `RES-${Date.now()}`;
+    const date = bookingDate || new Date().toISOString().split('T')[0];
+
+    // Check slot limit
+    let row = await getQuery(
+      `SELECT * FROM chef_capacities WHERE cook_id = ? AND slot_date = ? AND meal_period = ?`,
+      [cookId, date, mealPeriod]
+    );
+
+    if (row) {
+      const remaining = row.total_capacity - row.subscription_allocated - row.reserved_count;
+      if (remaining < quantity) {
+        return res.status(400).json({
+          error: 'Slot is full. You can join the waitlist or select an alternative date.',
+          isFull: true,
+        });
+      }
+      // Increment reserved count
+      await runQuery(
+        `UPDATE chef_capacities SET reserved_count = reserved_count + ? WHERE id = ?`,
+        [quantity, row.id]
+      );
+    }
+
+    await runQuery(
+      `INSERT INTO reservations (id, user_id, cook_id, meal_id, booking_type, booking_date, meal_period, fulfillment_type, quantity, status, address, phone, time_slot, special_notes, total_amount)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        userId,
+        cookId,
+        mealId,
+        bookingType,
+        date,
+        mealPeriod,
+        fulfillmentType,
+        quantity,
+        'Confirmed',
+        address || '',
+        phone || '',
+        timeSlot || '',
+        specialNotes || '',
+        totalAmount || 0,
+      ]
+    );
+
+    res.status(200).json({
+      success: true,
+      reservationId: id,
+      message: 'Tiffin slot booked successfully!',
+    });
+  } catch (error) {
+    console.error('Error reserving slot:', error);
+    res.status(500).json({ error: 'Failed to reserve slot' });
+  }
+});
+
+// 6. Join Waitlist for Sold Out Slot
+app.post('/api/reservations/waitlist', async (req, res) => {
+  try {
+    const {
+      userId = 'user_123',
+      customerName,
+      customerPhone,
+      cookId,
+      mealId,
+      bookingDate,
+      mealPeriod = 'Lunch',
+    } = req.body;
+
+    const id = `WL-${Date.now()}`;
+    const date = bookingDate || new Date().toISOString().split('T')[0];
+
+    await runQuery(
+      `INSERT INTO waitlist (id, user_id, customer_name, customer_phone, cook_id, meal_id, booking_date, meal_period, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, userId, customerName || 'Valued Customer', customerPhone || '', cookId, mealId, date, mealPeriod, 'Waiting']
+    );
+
+    res.status(200).json({
+      success: true,
+      waitlistId: id,
+      message: 'You have been added to the waitlist! If a slot is released before the cutoff, you will be notified.',
+    });
+  } catch (error) {
+    console.error('Error joining waitlist:', error);
+    res.status(500).json({ error: 'Failed to join waitlist' });
+  }
+});
+
+// 7. Subscription Skip Meal & Release Slot
+app.post('/api/subscriptions/skip', async (req, res) => {
+  try {
+    const { subscriptionId, cookId, date, mealPeriod = 'Lunch' } = req.body;
+
+    // Release slot in chef_capacities
+    if (cookId && date) {
+      await runQuery(
+        `UPDATE chef_capacities 
+         SET subscription_allocated = MAX(0, subscription_allocated - 1)
+         WHERE cook_id = ? AND slot_date = ? AND meal_period = ?`,
+        [cookId, date, mealPeriod]
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      subscriptionId,
+      skippedDate: date,
+      mealPeriod,
+      message: 'Meal skipped successfully. Your slot has been released back to the kitchen pool.',
+    });
+  } catch (error) {
+    console.error('Error skipping subscription meal:', error);
+    res.status(500).json({ error: 'Failed to skip subscription meal' });
+  }
+});
+
+// --- Authentication & User Management Endpoints ---
+
+const cleanPhone = (p) => {
+  if (!p) return '';
+  const digits = String(p).replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+  if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1);
+  if (digits.length >= 10) return digits.slice(-10);
+  return digits;
+};
+
+// 8. Get All Users
+app.get('/api/auth/users', async (req, res) => {
+  try {
+    const users = await allQuery(`SELECT * FROM users ORDER BY created_at DESC`);
+    res.status(200).json({
+      success: true,
+      users: users.map(u => ({
+        ...u,
+        details: u.details ? JSON.parse(u.details) : {}
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// 9. Check Phone Existence
+app.post('/api/auth/check-phone', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    const normalized = cleanPhone(phone);
+    if (!normalized) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    const user = await getQuery(`SELECT * FROM users WHERE phone = ?`, [normalized]);
+    if (user) {
+      return res.status(200).json({
+        exists: true,
+        user: {
+          ...user,
+          details: user.details ? JSON.parse(user.details) : {}
+        }
+      });
+    }
+
+    res.status(200).json({ exists: false });
+  } catch (error) {
+    console.error('Error checking phone:', error);
+    res.status(500).json({ error: 'Failed to check phone number' });
+  }
+});
+
+// 10. Register User (First-time)
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { id, name, email, phone, role, details, avatar, status = 'approved' } = req.body;
+    const normalized = cleanPhone(phone);
+
+    if (!normalized) {
+      return res.status(400).json({ error: 'Valid phone number is required' });
+    }
+    if (!role) {
+      return res.status(400).json({ error: 'Role is required' });
+    }
+
+    // Check if duplicate
+    const existing = await getQuery(`SELECT * FROM users WHERE phone = ?`, [normalized]);
+    if (existing) {
+      return res.status(400).json({
+        error: 'This phone number is already registered. Please log in instead.'
+      });
+    }
+
+    const userId = id || `usr-${Date.now()}`;
+    const defaultAvatar = avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80';
+    const serializedDetails = typeof details === 'object' ? JSON.stringify(details) : (details || '{}');
+
+    await runQuery(
+      `INSERT INTO users (id, name, email, phone, role, status, avatar, details)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [userId, name || 'User', email || '', normalized, role, status, defaultAvatar, serializedDetails]
+    );
+
+    const newUser = {
+      id: userId,
+      name: name || 'User',
+      email: email || '',
+      phone: normalized,
+      role,
+      status,
+      avatar: defaultAvatar,
+      details: typeof details === 'object' ? details : JSON.parse(serializedDetails)
+    };
+
+    res.status(200).json({
+      success: true,
+      message: 'Account created successfully',
+      user: newUser
+    });
+  } catch (error) {
+    console.error('Error registering user:', error);
+    res.status(500).json({ error: error.message || 'Failed to create user account' });
+  }
+});
+
+// 11. Login with Phone & OTP
+app.post('/api/auth/login-otp', async (req, res) => {
+  try {
+    const { phone, otp } = req.body;
+    const normalized = cleanPhone(phone);
+
+    if (!normalized) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    const user = await getQuery(`SELECT * FROM users WHERE phone = ?`, [normalized]);
+    if (!user) {
+      return res.status(404).json({
+        error: 'No account found with this phone number. Please register first.'
+      });
+    }
+
+    if (!otp || String(otp).length < 4) {
+      return res.status(400).json({ error: 'Please enter a valid 4-digit or 6-digit OTP' });
+    }
+
+    if (user.status === 'rejected') {
+      return res.status(403).json({ error: 'Your account has been rejected.' });
+    }
+    if (user.status === 'suspended') {
+      return res.status(403).json({ error: 'Your account has been suspended.' });
+    }
+
+    res.status(200).json({
+      success: true,
+      user: {
+        ...user,
+        details: user.details ? JSON.parse(user.details) : {}
+      }
+    });
+  } catch (error) {
+    console.error('Error during OTP login:', error);
+    res.status(500).json({ error: 'Failed to authenticate user' });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Backend server running on http://localhost:${port}`);
 });
+

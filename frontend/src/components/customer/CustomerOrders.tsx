@@ -14,10 +14,13 @@ import {
   RotateCcw,
   Star,
   Sparkles,
+  Store,
+  Users,
+  Calendar,
 } from 'lucide-react';
 
 export const CustomerOrders: React.FC = () => {
-  const { orders, updateOrderStatus, setSelectedMealForOrder, meals, setCustomerTab } = useApp();
+  const { orders, updateOrderStatus, setSelectedMealForOrder, meals, setCustomerTab, waitlist } = useApp();
   const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<Order | null>(null);
   const [reviewModalOrder, setReviewModalOrder] = useState<Order | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
@@ -30,15 +33,17 @@ export const CustomerOrders: React.FC = () => {
   const pastOrders = orders.filter((o) => o.status === 'Delivered');
 
   const statusSteps: OrderStatus[] = [
+    'Slot Reserved',
     'Confirmed',
     'Preparing',
-    'Picked Up',
-    'Out for Delivery',
+    'Meal Ready',
     'Delivered',
   ];
 
   const getStepIndex = (status: OrderStatus) => {
-    return statusSteps.indexOf(status);
+    if (status === 'Picked Up' || status === 'Out for Delivery') return 3;
+    const idx = statusSteps.indexOf(status);
+    return idx >= 0 ? idx : 1;
   };
 
   const handleSimulateNextStep = (order: Order) => {
@@ -73,30 +78,67 @@ export const CustomerOrders: React.FC = () => {
       <div>
         <h2 className="text-2xl font-extrabold text-[#1a1c1c] tracking-tight flex items-center gap-2">
           <ShoppingBag className="w-6 h-6 text-[#944a00]" />
-          <span>My Orders & Live Tracking</span>
+          <span>My Reservations & Tiffin Status</span>
         </h2>
         <p className="text-xs sm:text-sm text-[#564337]">
-          Track your active meal preparation and delivery in real time, or reorder your favorite past dishes.
+          Track your confirmed tiffin preparation and delivery in real time, or reserve again for upcoming slots.
         </p>
       </div>
+
+      {/* Active Waitlist Section if customer joined any waitlist */}
+      {waitlist && waitlist.length > 0 && (
+        <div className="bg-[#faf9f8] rounded-2xl border border-amber-300/80 p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-amber-900 flex items-center gap-2">
+              <Users className="w-4 h-4 text-amber-700" />
+              <span>Active Waitlist Slots ({waitlist.length})</span>
+            </h3>
+            <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full">
+              Automatic Booking Window Notification
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {waitlist.map((entry) => (
+              <div
+                key={entry.id}
+                className="bg-white p-3.5 rounded-xl border border-amber-200/80 shadow-2xs space-y-1"
+              >
+                <div className="flex justify-between items-start">
+                  <div className="font-bold text-xs text-[#1a1c1c]">{entry.mealName}</div>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900">
+                    {entry.status}
+                  </span>
+                </div>
+                <div className="text-xs text-[#564337]">
+                  Chef: <strong>{entry.cookName}</strong> • {entry.date} ({entry.mealPeriod})
+                </div>
+                <p className="text-[10px] text-[#564337] italic">
+                  Joined at {entry.createdAt}. You will be notified as soon as a subscriber skips or a slot is released.
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Active Orders Section */}
       <div className="space-y-4">
         <h3 className="text-sm font-bold uppercase tracking-wider text-[#944a00] flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-[#944a00] animate-ping"></span>
-          <span>Live In-Progress Orders ({activeOrders.length})</span>
+          <span>Live In-Progress Reservations ({activeOrders.length})</span>
         </h3>
 
         {activeOrders.length === 0 ? (
           <div className="bg-white rounded-2xl border border-[#dcc1b1]/60 p-8 text-center space-y-3">
             <ShoppingBag className="w-10 h-10 text-[#564337]/40 mx-auto" />
-            <div className="font-bold text-sm text-[#1a1c1c]">No active orders right now</div>
-            <p className="text-xs text-[#564337]">Order fresh home cooked meals from today's menu!</p>
+            <div className="font-bold text-sm text-[#1a1c1c]">No active reservations right now</div>
+            <p className="text-xs text-[#564337]">Reserve fresh home-cooked tiffins from available slots!</p>
             <button
               onClick={() => setCustomerTab('meals')}
               className="px-4 py-2 bg-[#944a00] text-white text-xs font-bold rounded-xl shadow-xs"
             >
-              Browse Today's Meals
+              Browse Today's Tiffins
             </button>
           </div>
         ) : (
@@ -210,18 +252,34 @@ export const CustomerOrders: React.FC = () => {
                     <div className="bg-[#faf9f8] p-3 rounded-xl border border-[#dcc1b1]/40 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-[#1a1c1c] flex items-center gap-1.5">
-                          <Bike className="w-4 h-4 text-[#4e6074]" /> Delivery Partner
+                          {order.fulfillmentType === 'Pickup' ? (
+                            <>
+                              <Store className="w-4 h-4 text-[#51634c]" /> Kitchen Pickup
+                            </>
+                          ) : (
+                            <>
+                              <Bike className="w-4 h-4 text-[#4e6074]" /> Delivery Partner
+                            </>
+                          )}
                         </span>
                         <span className="text-[#51634c] font-bold text-[11px]">
-                          ● Assigned & Active
+                          ● {order.fulfillmentType === 'Pickup' ? 'Self Collection' : 'Assigned & Active'}
                         </span>
                       </div>
                       <div className="text-[#564337]">
-                        <strong>{order.deliveryPartnerName || 'Ramesh Patel (Cluster Partner)'}</strong>
+                        <strong>
+                          {order.fulfillmentType === 'Pickup'
+                            ? `${order.cookName}'s Kitchen`
+                            : order.deliveryPartnerName || 'Ramesh Patel (Cluster Partner)'}
+                        </strong>
                       </div>
                       <div className="flex items-center gap-1 text-[11px] text-[#564337]">
                         <MapPin className="w-3.5 h-3.5 text-[#944a00] shrink-0" />
-                        <span className="truncate">Drop: {order.customerAddress}</span>
+                        <span className="truncate">
+                          {order.fulfillmentType === 'Pickup'
+                            ? `Collection point: ${order.customerAddress}`
+                            : `Drop: ${order.customerAddress}`}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -232,10 +290,10 @@ export const CustomerOrders: React.FC = () => {
         )}
       </div>
 
-      {/* Past Completed Orders */}
+      {/* Past Completed Reservations */}
       <div className="space-y-4 pt-4">
         <h3 className="text-sm font-bold uppercase tracking-wider text-[#564337]">
-          Past Delivered Orders ({pastOrders.length})
+          Past Completed Reservations ({pastOrders.length})
         </h3>
 
         <div className="space-y-3">
@@ -248,13 +306,13 @@ export const CustomerOrders: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-sm text-[#1a1c1c]">{order.id}</span>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#d1e6c9] text-[#51634c]">
-                    ✓ Delivered
+                    ✓ {order.fulfillmentType === 'Pickup' ? 'Collected' : 'Delivered'}
                   </span>
                   <span className="text-xs text-[#564337]">on {order.orderDate}</span>
                 </div>
 
                 <div className="text-xs text-[#564337]">
-                  Cook: <strong>{order.cookName}</strong> • {order.quantity}x {order.mealName}
+                  Chef: <strong>{order.cookName}</strong> • {order.quantity}x {order.mealName}
                 </div>
 
                 <div className="text-xs font-bold text-[#944a00]">Total: ₹{order.totalAmount}</div>
@@ -266,7 +324,7 @@ export const CustomerOrders: React.FC = () => {
                   className="flex-1 sm:flex-initial px-3 py-2 bg-[#faf9f8] hover:bg-[#eeeeed] text-[#564337] border border-[#dcc1b1] rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
                 >
                   <Star className="w-3.5 h-3.5 text-[#e67e22]" />
-                  <span>Rate Order</span>
+                  <span>Rate Tiffin</span>
                 </button>
 
                 <button
@@ -274,7 +332,7 @@ export const CustomerOrders: React.FC = () => {
                   className="flex-1 sm:flex-initial px-4 py-2 bg-[#944a00] hover:bg-[#713700] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Reorder</span>
+                  <span>Reserve Again</span>
                 </button>
               </div>
             </div>

@@ -62,7 +62,6 @@ export const Sidebar: React.FC = () => {
     { id: 'meals', label: "Today's Meals", icon: Utensils },
     { id: 'orders', label: 'Orders & Tracking', icon: ShoppingBag },
     { id: 'following', label: 'Following', icon: Heart },
-    { id: 'reviews', label: 'Reviews & Ratings', icon: Star },
     { id: 'profile', label: 'My Profile', icon: User },
   ];
 
@@ -81,7 +80,6 @@ export const Sidebar: React.FC = () => {
   const deliveryNavItems: { id: DeliveryTab; label: string; icon: any }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'deliveries', label: "Today's Deliveries", icon: PackageCheck },
-    { id: 'route', label: 'Smart Cluster Route', icon: Navigation },
     { id: 'pickup', label: 'Cook Pickups', icon: Store },
     { id: 'active', label: 'Active Delivery', icon: Bike },
     { id: 'history', label: 'Delivery History', icon: History },
@@ -111,12 +109,12 @@ export const Sidebar: React.FC = () => {
         {role === 'customer' && (
           <div className="flex items-center gap-3">
             <img
-              src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80"
-              alt="Jay Shah"
+              src={currentUser?.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80"}
+              alt={currentUser?.name || "Jay Shah"}
               className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm"
             />
             <div className="overflow-hidden">
-              <p className="text-xs font-bold text-[#1a1c1c] truncate">Welcome, Jay Shah</p>
+              <p className="text-xs font-bold text-[#1a1c1c] truncate">Welcome, {currentUser?.name || 'Jay Shah'}</p>
               <p className="text-[11px] text-[#564337] flex items-center gap-1 font-medium">
                 <span className="w-2 h-2 rounded-full bg-[#51634c]"></span> Customer Role
               </p>
@@ -127,12 +125,12 @@ export const Sidebar: React.FC = () => {
         {role === 'cook' && (
           <div className="flex items-center gap-3">
             <img
-              src={currentCookProfile.avatar}
-              alt={currentCookProfile.name}
+              src={currentUser?.avatar || currentCookProfile.avatar}
+              alt={currentUser?.name || currentCookProfile.name}
               className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm"
             />
             <div className="overflow-hidden">
-              <p className="text-xs font-bold text-[#1a1c1c] truncate">{currentCookProfile.name}</p>
+              <p className="text-xs font-bold text-[#1a1c1c] truncate">{currentUser?.name || currentCookProfile.name}</p>
               <p className="text-[11px] text-[#944a00] font-medium flex items-center gap-1">
                 <span className={`w-2 h-2 rounded-full ${currentCookProfile.kitchenOpen ? 'bg-green-500' : 'bg-red-400'}`}></span>
                 {currentCookProfile.kitchenOpen ? 'Kitchen Open' : 'Kitchen Closed'}
@@ -144,12 +142,12 @@ export const Sidebar: React.FC = () => {
         {role === 'delivery' && (
           <div className="flex items-center gap-3">
             <img
-              src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80"
-              alt="Ramesh Patel"
+              src={currentUser?.avatar || "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80"}
+              alt={currentUser?.name || "Ramesh Patel"}
               className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm"
             />
             <div className="overflow-hidden">
-              <p className="text-xs font-bold text-[#1a1c1c] truncate">Ramesh Patel</p>
+              <p className="text-xs font-bold text-[#1a1c1c] truncate">{currentUser?.name || 'Ramesh Patel'}</p>
               <p className="text-[11px] text-[#4e6074] font-medium flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-blue-500"></span> On Duty • 4.8★
               </p>

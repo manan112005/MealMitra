@@ -29,6 +29,17 @@ export const Header: React.FC = () => {
     setRole('entry');
   };
 
+  const handleLogoClick = () => {
+    if (currentUser) {
+      if (role === 'customer') setCustomerTab('dashboard');
+      else if (role === 'cook') setCookTab('dashboard');
+      else if (role === 'delivery') setDeliveryTab('dashboard');
+      else if (role === 'admin') setAdminTab('dashboard');
+    } else {
+      setRole('entry');
+    }
+  };
+
   const getRoleBadge = () => {
     switch (role) {
       case 'customer':
@@ -50,8 +61,8 @@ export const Header: React.FC = () => {
       {/* Brand */}
       <div className="flex items-center gap-3">
         <button
-          onClick={() => setRole('entry')}
-          className="flex items-center gap-2 text-left group focus:outline-none"
+          onClick={handleLogoClick}
+          className="flex items-center gap-2 text-left group focus:outline-none cursor-pointer"
         >
           <div className="w-9 h-9 rounded-lg bg-[#944a00] text-white flex items-center justify-center shadow-sm group-hover:bg-[#713700] transition-colors">
             <UtensilsCrossed className="w-5 h-5" />
@@ -68,8 +79,6 @@ export const Header: React.FC = () => {
 
         {role !== 'entry' && (
           <div className="flex items-center gap-2">
-
-
             <div className={`hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${roleBadge.bg} ${roleBadge.text}`}>
               <RoleIcon className="w-3.5 h-3.5" />
               <span>{roleBadge.label}</span>
@@ -84,24 +93,38 @@ export const Header: React.FC = () => {
         <button
           onClick={resetAllData}
           title="Reset Prototype Data to Defaults"
-          className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#564337] hover:text-[#944a00] hover:bg-[#eeeeed] rounded-lg transition-colors border border-[#dcc1b1]/40"
+          className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#564337] hover:text-[#944a00] hover:bg-[#eeeeed] rounded-lg transition-colors border border-[#dcc1b1]/40 cursor-pointer"
         >
           <RotateCcw className="w-3.5 h-3.5" />
           <span>Reset Demo</span>
         </button>
 
-        {/* Authentication / Role Switcher */}
+        {/* Authentication Info & Logout */}
         {currentUser && (
-          <div className="flex items-center gap-3 ml-2">
+          <div className="flex items-center gap-2 sm:gap-3 ml-2">
             <div className="hidden sm:block text-right">
               <div className="text-sm font-bold text-[#1a1c1c]">{currentUser.name}</div>
-              <div className="text-[10px] text-[#564337] capitalize">{currentUser.role}</div>
+              <div className="text-[10px] text-[#564337] capitalize font-medium">
+                {currentUser.role === 'cook'
+                  ? 'Home Cook'
+                  : currentUser.role === 'delivery'
+                  ? 'Delivery Partner'
+                  : currentUser.role}
+              </div>
             </div>
             <img 
               src={currentUser.avatar} 
               alt={currentUser.name}
               className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border-2 border-white shadow-sm"
             />
+            <button
+              onClick={handleLogout}
+              title="Logout"
+              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-[#564337] hover:text-red-600 hover:bg-red-50 border border-[#dcc1b1]/40 hover:border-red-200 transition-colors flex items-center gap-1 text-xs font-semibold cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5 text-red-500" />
+              <span className="hidden sm:inline text-red-600 font-bold">Logout</span>
+            </button>
           </div>
         )}
 
