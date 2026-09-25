@@ -805,6 +805,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
+    // Sync with backend API on mount
+    useEffect(() => {
+      let isMounted = true;
+
+      const syncWithBackend = async () => {
+        try {
+          const [backendCooks, backendMeals] = await Promise.allSettled([
+            cookService.getCooks(),
+            mealService.getMeals(),
+          ]);
+
+          if (!isMounted) return;
+
+          if (backendCooks.status === 'fulfilled' && Array.isArray(backendCooks.value) && backendCooks.value.length > 0) {
+            setCooks((prev) => {
+              const prevMap = new Map(prev.map((c) => [c.id, c]));
+              backendCooks.value.forEach((c) => {
+                prevMap.set(c.id, { ...prevMap.get(c.id), ...c });
+              });
+              return Array.from(prevMap.values());
+            });
+          }
+
+          if (backendMeals.status === 'fulfilled' && Array.isArray(backendMeals.value) && backendMeals.value.length > 0) {
+            setMeals((prev) => {
+              const prevMap = new Map(prev.map((m) => [m.id, m]));
+              backendMeals.value.forEach((m) => {
+                prevMap.set(m.id, { ...prevMap.get(m.id), ...m });
+              });
+              return Array.from(prevMap.values());
+            });
+          }
+        } catch (err) {
+          console.warn('Initial backend sync note:', err);
+        }
+      };
+
+      syncWithBackend();
+
+      return () => {
+        isMounted = false;
+      };
+    }, []);
+
     try {
       await subscriptionService.skipMealSlot(userSubscription.id, slotId, date, mealPeriod);
     } catch (err) {
@@ -833,6 +877,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
+    // Sync status change to backend API
+    orderService.updateOrderStatus(orderId, status).catch((err) => {
+      console.warn('Order status backend update note:', err);
+    });
+
     addNotification({
       title: `Order Update: ${status}`,
       message: `Order #${orderId} status has changed to "${status}".`,
@@ -847,6 +896,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCooks((prev) =>
       prev.map((c) => (c.id === cookId ? { ...c, kitchenOpen: open } : c))
     );
+
+    // Sync kitchen status to backend
+    cookService.updateKitchenStatus(cookId, open).catch((err) => {
+      console.warn('Kitchen status backend sync note:', err);
+    });
 
     addNotification({
       title: open ? `📢 ${cookName}: Kitchen Opened` : `🚨 ${cookName}: Kitchen Closed`,
@@ -881,6 +935,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : c
       )
     );
+
+    // Sync quantities to backend
+    cookService.updateKitchenQuantities(cookId, lunchAvail, lunchTotal, dinnerAvail, dinnerTotal).catch((err) => {
+      console.warn('Kitchen quantities backend sync note:', err);
+    });
 
     if (lunchAvail === 0 && dinnerAvail === 0) {
       addNotification({
@@ -945,6 +1004,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { ...c, weeklyMenu: updatedMenu };
       })
     );
+
+    // Sync menu slot to backend
+    if (days.length > 0) {
+      cookService.updateWeeklyMenu(cookId, days[0], mealType, mealData, days).catch((err) => {
+        console.warn('Weekly menu slot backend sync note:', err);
+      });
+    }
 
     // Sync with meals collection so customer views & search also reflect the updated meal
     const category = mealType === 'lunch' ? 'Lunch' : 'Dinner';
@@ -1046,6 +1112,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { ...c, weeklyMenu: updatedMenu };
       })
     );
+
+    cookService.removeWeeklyMealSlot(cookId, day, mealType).catch((err) => {
+      console.warn('Remove weekly slot backend sync note:', err);
+    });
   };
 
   const autofillCookWeeklyMenu = (cookId: string) => {
@@ -1058,6 +1128,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       })
     );
+
+    cookService.autofillWeeklyMenu(cookId).catch((err) => {
+      console.warn('Autofill weekly menu backend sync note:', err);
+    });
   };
 
   const addMeal = (mealData: Omit<Meal, 'id'>) => {
@@ -1066,20 +1140,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `m-${Math.floor(Math.random() * 10000)}`,
     };
     setMeals(prev => [newMeal, ...prev]);
+
+    mealService.createMeal(mealData).catch((err) => {
+      console.warn('Add meal backend sync note:', err);
+    });
   };
 
   const updateMeal = (mealId: string, updated: Partial<Meal>) => {
     setMeals(prev => prev.map(m => m.id === mealId ? { ...m, ...updated } : m));
+
+    mealService.updateMeal(mealId, updated).catch((err) => {
+      console.warn('Update meal backend sync note:', err);
+    });
   };
 
   const deleteMeal = (mealId: string) => {
     setMeals(prev => prev.filter(m => m.id !== mealId));
+
+    mealService.deleteMeal(mealId).catch((err) => {
+      console.warn('Delete meal backend sync note:', err);
+    });
   };
 
   const updateCookProfile = (cookId: string, updated: Partial<CookProfile>) => {
     setCooks((prev) =>
       prev.map((c) => (c.id === cookId ? { ...c, ...updated } : c))
     );
+
+    cookService.updateCook(cookId, updated).catch((err) => {
+      console.warn('Update cook profile backend sync note:', err);
+    });
   };
 
   const addCook = (cookData: Partial<CookProfile>): CookProfile => {
@@ -1138,6 +1228,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return [newCook, ...prev];
     });
 
+    cookService.addCook(newCook).catch((err) => {
+      console.warn('Add cook backend sync note:', err);
+    });
+
     // Automatically create a signature meal for this newly added cook
     const newMeal: Meal = {
       id: `m-${newCook.id}`,
@@ -1169,12 +1263,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return prev;
     });
 
+    mealService.createMeal(newMeal).catch((err) => {
+      console.warn('Create meal for cook backend sync note:', err);
+    });
+
     return newCook;
   };
 
   const deleteCook = (cookId: string) => {
     setCooks((prev) => prev.filter((c) => c.id !== cookId));
     setMeals((prev) => prev.filter((m) => m.cookId !== cookId));
+
+    cookService.deleteCook(cookId).catch((err) => {
+      console.warn('Delete cook backend sync note:', err);
+    });
   };
 
   const clearMockCooks = () => {
@@ -1219,6 +1321,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(`mealmitra_cook_plans_${cookId}`, JSON.stringify(plans));
     } catch {}
 
+    cookService.updateSubscriptionPlans(cookId, plans).catch((err) => {
+      console.warn('Update cook subscription plans backend sync note:', err);
+    });
+
     addNotification({
       title: 'Subscription Plans Published',
       message: 'Your custom subscription plans and pricing are now live for customers.',
@@ -1233,6 +1339,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return isTarget ? { ...s, ...updated } : s;
       })
     );
+
+    if (userSubscription?.id) {
+      subscriptionService.updateSubscription(userSubscription.id, updated).catch((err) => {
+        console.warn('Update subscription backend sync note:', err);
+      });
+    }
   };
 
   const subscribeToPlan = (
@@ -1276,7 +1388,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       planCategory: plan.category,
       planPeriod: plan.type,
       planPrice: plan.price,
-      paymentMethod: (details as any).paymentMethod || 'UPI / Online (Paid)',
+      paymentMethod: (details as any).paymentMethod || 'Razorpay UPI / Online (Paid)',
       cookId: chosenCookId,
       cookName: chosenCookName,
       cookAvatar: chosenCookAvatar,
@@ -1335,6 +1447,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           )
       );
       return [newSub, ...filtered];
+    });
+
+    subscriptionService.createSubscription(newSub).catch((err) => {
+      console.warn('Create subscription backend sync note:', err);
     });
 
     addNotification({
