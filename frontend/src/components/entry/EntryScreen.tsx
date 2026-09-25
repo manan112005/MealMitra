@@ -410,7 +410,7 @@ export const EntryScreen: React.FC = () => {
       }
     } catch {}
 
-    // 3. Defaults - Only the 2 real users
+    // 3. Defaults - Primary user
     const defaults = [
       {
         name: 'MANAN PATEL',
@@ -419,18 +419,11 @@ export const EntryScreen: React.FC = () => {
         initialColor: 'bg-blue-600',
         role: 'customer' as UserRole,
       },
-      {
-        name: 'Manan (Personal)',
-        email: 'manan.personal@gmail.com',
-        avatar: getSavedAvatarForUser('manan.personal@gmail.com') || '',
-        initialColor: 'bg-emerald-600',
-        role: 'customer' as UserRole,
-      },
     ];
 
     defaults.forEach((def) => {
       const defEmailLower = def.email.toLowerCase();
-      if (!seenEmails.has(defEmailLower)) {
+      if (!seenEmails.has(defEmailLower) && defEmailLower !== 'manan.personal@gmail.com') {
         seenEmails.add(defEmailLower);
         list.push(def);
       }
@@ -643,32 +636,6 @@ export const EntryScreen: React.FC = () => {
                                 placeholder="Phone Number"
                                 autoFocus
                               />
-                            </div>
-                          </div>
-
-                          {/* Quick Demo Credentials for Fast Testing */}
-                          <div className="pt-1">
-                            <div className="text-[10px] font-semibold text-[#564337]/80 mb-1.5 flex items-center gap-1">
-                              <Sparkles className="w-3 h-3 text-[#944a00]" />
-                              <span>Quick Demo Accounts:</span>
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleQuickFillLogin('9898011223')}
-                                className="px-2 py-1 rounded-md bg-[#d1e4fc]/50 hover:bg-[#d1e4fc] text-[#4e6074] text-[10px] font-bold border border-[#4e6074]/20 transition-colors"
-                                title="Delivery Partner: Ramesh Patel"
-                              >
-                                🚴 Partner (9898011223)
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleQuickFillLogin('9825123456')}
-                                className="px-2 py-1 rounded-md bg-[#ffdcc5]/50 hover:bg-[#ffdcc5] text-[#944a00] text-[10px] font-bold border border-[#944a00]/20 transition-colors"
-                                title="Customer: MANAN PATEL"
-                              >
-                                👤 Customer (9825123456)
-                              </button>
                             </div>
                           </div>
 

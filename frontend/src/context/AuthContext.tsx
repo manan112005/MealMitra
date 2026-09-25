@@ -136,16 +136,6 @@ export const getFreshSeedUsers = (): AuthUser[] => [
       dietaryPreference: 'Vegetarian',
     },
   },
-  {
-    id: 'usr-manan-2',
-    name: 'Manan (Personal)',
-    email: 'manan.personal@gmail.com',
-    phone: '9876543210',
-    role: 'customer',
-    status: 'approved',
-    avatar: getSavedAvatarForUser('manan.personal@gmail.com') || getDeterministicAvatar('Manan (Personal)'),
-    applicationDetails: {},
-  },
 ];
 
 export const DEFAULT_SEED_USERS: AuthUser[] = getFreshSeedUsers();
@@ -270,9 +260,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         'admin@mealmitra.com',
         'manan.work@gmail.com',
         'nirmala@mealmitra.com',
+        'manan.personal@gmail.com',
+        'hardik.delivery@gmail.com',
+        'kiranben.rasoi@gmail.com',
       ];
-      const fakeIds = ['usr-delivery-1', 'usr-cust-1', 'usr-admin-1', 'usr-cook-1'];
-      const fakeNames = ['Ramesh Patel', 'Jay Shah', 'Admin Manager', 'Nirmala Devi', 'MealMitra User'];
+      const fakeIds = ['usr-delivery-1', 'usr-cust-1', 'usr-admin-1', 'usr-cook-1', 'usr-manan-2', 'usr-app-hardik', 'usr-app-kiranben'];
+      const fakeNames = ['Ramesh Patel', 'Jay Shah', 'Admin Manager', 'Nirmala Devi', 'MealMitra User', 'Manan (Personal)', 'Hardik Joshi', 'Kiranben Shah'];
 
       let parsed: AuthUser[] = [];
       if (savedUsers) {

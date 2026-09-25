@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { useAuth, normalizePhone } from './AuthContext';
 import {
   UserRole,
@@ -386,7 +386,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           (s.customerName && s.customerName.toLowerCase() === currentUser.name.toLowerCase()) ||
           (currentUser.phone && s.customerPhone && normalizePhone(s.customerPhone) === normalizePhone(currentUser.phone))
       ) ||
-      subscriptions[0] ||
       null
     );
   }, [subscriptions, currentUser]);
@@ -439,7 +438,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [deliveryPartnerState, setDeliveryPartnerState] = useState<DeliveryPartnerState>(() => {
     const saved = localStorage.getItem('mealmitra_delivery_partner');
-    return saved ? JSON.parse(saved) : MOCK_DELIVERY_PARTNER_STATE;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.name !== 'Ramesh Patel') {
+          return parsed;
+        }
+      } catch {}
+    }
+    return {
+      id: currentUser?.id || 'partner-1',
+      name: currentUser?.name || currentUser?.applicationDetails?.name || 'Delivery Partner',
+      phone: currentUser?.phone || '',
+      vehicle: currentUser?.applicationDetails?.vehicleType || currentUser?.applicationDetails?.vehicleNumber || 'Two-Wheeler (EV / Bike)',
+      isOnDuty: true,
+      activeCluster: currentUser?.applicationDetails?.preferredCluster
+        ? `${currentUser.applicationDetails.preferredCluster} Cluster`
+        : currentUser?.applicationDetails?.city
+        ? `${currentUser.applicationDetails.city} Central Cluster`
+        : 'Ahmedabad Central Cluster',
+      todayDeliveries: 0,
+      todayEarnings: 0,
+      rating: 5.0,
+    };
   });
 
   const [routeStops, setRouteStops] = useState<RouteStop[]>(() => {
@@ -447,11 +468,115 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('mealmitra_route_stops');
       if (saved) {
         const parsed = JSON.parse(saved);
-        return parsed.filter((r: RouteStop) => r.targetName !== 'Jay Shah');
+        if (Array.isArray(parsed)) {
+          return parsed.filter(
+            (r: RouteStop) =>
+              !['Nirmala Devi Kitchen', 'Chef Maria Kitchen', 'Sneha Patel', 'Karan Malhotra', 'Jay Shah'].includes(r.targetName)
+          );
+        }
       }
     } catch {}
     return [];
   });
+
+  // Keep delivery partner state synced with authenticated user
+  useEffect(() => {
+    if (currentUser) {
+      setDeliveryPartnerState((prev) => ({
+        ...prev,
+        id: currentUser.id,
+        name: currentUser.name || currentUser.applicationDetails?.name || prev.name,
+        phone: currentUser.phone || prev.phone,
+        vehicle: currentUser.applicationDetails?.vehicleType || currentUser.applicationDetails?.vehicleNumber || prev.vehicle,
+        activeCluster: currentUser.applicationDetails?.preferredCluster
+          ? `${currentUser.applicationDetails.preferredCluster} Cluster`
+          : currentUser.applicationDetails?.city
+          ? `${currentUser.applicationDetails.city} Central Cluster`
+          : prev.activeCluster,
+      }));
+    }
+  }, [currentUser]);
+
+  // Dynamically build and sync route stops from active orders and verified cooks
+  useEffect(() => {
+    // Only include active non-delivered delivery orders
+    const deliveryOrders = (orders || []).filter(
+      (o) => o.fulfillmentType !== 'Pickup' && o.status !== 'Delivered'
+    );
+    if (deliveryOrders.length === 0) {
+      setRouteStops([]);
+      return;
+    }
+
+    // 1. Group active orders by cook for Cook Pickups
+    const cookMap = new Map<string, Order[]>();
+    deliveryOrders.forEach((o) => {
+      const key = o.cookId || o.cookName;
+      if (!cookMap.has(key)) cookMap.set(key, []);
+      cookMap.get(key)!.push(o);
+    });
+
+    const stops: RouteStop[] = [];
+    let stopCounter = 1;
+
+    // Build Cook Pickup stops
+    cookMap.forEach((cookOrders, cookKey) => {
+      const cookObj = (cooks || []).find((c) => c.id === cookKey || c.name === cookKey);
+      const cookName = cookObj?.name || cookOrders[0]?.cookName || 'Home Cook';
+      const kitchenName = cookObj?.name ? `${cookObj.name}'s Kitchen` : `${cookName}'s Kitchen`;
+      const address = cookObj?.address || 'B-402, Shanti Niketan, Satellite, Ahmedabad';
+      const phone = cookObj?.phone || '+91 98765 43210';
+      const allPickedUp = cookOrders.every((o) =>
+        ['Picked Up', 'Out for Delivery'].includes(o.status)
+      );
+
+      const pickupId = `pickup-${cookKey}`;
+      stops.push({
+        id: pickupId,
+        stopOrder: stopCounter++,
+        type: 'Cook Pickup',
+        targetName: kitchenName,
+        address,
+        phone,
+        itemsSummary: `${cookOrders.length} Tiffin(s): ${cookOrders
+          .map((o) => `${o.quantity}x ${o.mealName} (For ${o.customerName})`)
+          .join(', ')}`,
+        eta: '12:45 PM',
+        distanceKm: 1.2,
+        status: allPickedUp ? 'Completed' : 'Pending',
+      });
+    });
+
+    // Build Customer Drop stops
+    deliveryOrders.forEach((order) => {
+      const dropId = `drop-${order.id}`;
+      const isInTransit = order.status === 'Out for Delivery' || order.status === 'Picked Up';
+
+      stops.push({
+        id: dropId,
+        stopOrder: stopCounter++,
+        type: 'Customer Drop',
+        targetName: order.customerName,
+        address: order.customerAddress,
+        phone: order.customerPhone || '+91 98251 23456',
+        itemsSummary: `${order.quantity}x ${order.mealName} (From ${order.cookName})`,
+        eta: order.deliveryTimeSlot || '1:15 PM',
+        distanceKm: 2.1,
+        status: isInTransit ? 'In Progress' : 'Pending',
+      });
+    });
+
+    // Ensure the first non-completed stop is marked 'In Progress'
+    const hasInProgress = stops.some((s) => s.status === 'In Progress');
+    if (!hasInProgress) {
+      const firstPendingIdx = stops.findIndex((s) => s.status === 'Pending');
+      if (firstPendingIdx !== -1) {
+        stops[firstPendingIdx].status = 'In Progress';
+      }
+    }
+
+    setRouteStops(stops);
+  }, [orders, cooks]);
 
   const [waitlist, setWaitlist] = useState<WaitlistEntry[]>(() => {
     const saved = localStorage.getItem('mealmitra_waitlist');
@@ -656,7 +781,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       orderTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       deliveryTimeSlot: orderData.timeSlot,
       status: 'Confirmed',
-      deliveryPartnerName: isPickup ? 'Direct Kitchen Pickup' : 'Ramesh Patel',
+      deliveryPartnerName: isPickup ? 'Direct Kitchen Pickup' : (deliveryPartnerState?.name || 'Assigned Cluster Partner'),
       specialNotes: orderData.specialNotes,
       bookingType: orderData.bookingType || 'one_time',
       bookingDate: chosenDate,
@@ -820,9 +945,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           if (backendCooks.status === 'fulfilled' && Array.isArray(backendCooks.value) && backendCooks.value.length > 0) {
             setCooks((prev) => {
-              const prevMap = new Map(prev.map((c) => [c.id, c]));
-              backendCooks.value.forEach((c) => {
-                prevMap.set(c.id, { ...prevMap.get(c.id), ...c });
+              const prevMap = new Map<string, CookProfile>(prev.map((c) => [c.id, c]));
+              (backendCooks.value as CookProfile[]).forEach((c) => {
+                const existing = prevMap.get(c.id);
+                prevMap.set(c.id, existing ? Object.assign({}, existing, c) : c);
               });
               return Array.from(prevMap.values());
             });
@@ -830,9 +956,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           if (backendMeals.status === 'fulfilled' && Array.isArray(backendMeals.value) && backendMeals.value.length > 0) {
             setMeals((prev) => {
-              const prevMap = new Map(prev.map((m) => [m.id, m]));
-              backendMeals.value.forEach((m) => {
-                prevMap.set(m.id, { ...prevMap.get(m.id), ...m });
+              const prevMap = new Map<string, Meal>(prev.map((m) => [m.id, m]));
+              (backendMeals.value as Meal[]).forEach((m) => {
+                const existing = prevMap.get(m.id);
+                prevMap.set(m.id, existing ? Object.assign({}, existing, m) : m);
               });
               return Array.from(prevMap.values());
             });
@@ -1369,9 +1496,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ? 600
         : 300;
 
-    const chosenCookName = details.cookName || currentCookProfile.name || 'Home Kitchen';
-    const chosenCookId = details.cookId || currentCookProfile.id || 'cook-1';
-    const chosenCookAvatar = details.cookAvatar || currentCookProfile.avatar;
+    const targetCook = (cooks && cooks.find((c) => c.id === details.cookId)) || (currentCookProfile && currentCookProfile.id === details.cookId ? currentCookProfile : null);
+    const chosenCookName = details.cookName || targetCook?.name || plan.cookName || currentCookProfile.name || 'Home Kitchen';
+    const chosenCookId = details.cookId || targetCook?.id || plan.cookId || currentCookProfile.id || 'cook-1';
+    const chosenCookAvatar = details.cookAvatar || targetCook?.avatar || currentCookProfile.avatar;
 
     const custName = currentUser?.name || 'Customer';
     const custPhone = currentUser?.phone || '+91 98251 23456';
@@ -1515,6 +1643,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const completeRouteStop = (stopId: string) => {
+    // 1. If it's a Cook Pickup stop:
+    if (stopId.startsWith('pickup-')) {
+      const cookKey = stopId.replace('pickup-', '');
+      // Update all matching orders for this cook to 'Out for Delivery'
+      setOrders((prev) =>
+        prev.map((o) => {
+          if ((o.cookId === cookKey || o.cookName === cookKey) && o.status !== 'Delivered') {
+            orderService.updateOrderStatus(o.id, 'Out for Delivery').catch(() => {});
+            return { ...o, status: 'Out for Delivery' as const };
+          }
+          return o;
+        })
+      );
+
+      addNotification({
+        title: 'Meals Picked Up & In Transit',
+        message: `Tiffins collected from cook kitchen. Now navigating to customer drop locations.`,
+        type: 'order',
+      });
+    }
+
+    // 2. If it's a Customer Drop stop:
+    if (stopId.startsWith('drop-')) {
+      const orderId = stopId.replace('drop-', '');
+      updateOrderStatus(orderId, 'Delivered');
+
+      setDeliveryPartnerState((prev) => ({
+        ...prev,
+        todayDeliveries: prev.todayDeliveries + 1,
+        todayEarnings: prev.todayEarnings + 60,
+      }));
+
+      addNotification({
+        title: 'Delivery Handover Successful',
+        message: `Meal successfully delivered to customer. ₹60 credited to wallet.`,
+        type: 'order',
+      });
+    }
+
     setRouteStops((prev) => {
       const updated = prev.map((s) => {
         if (s.id === stopId) {
@@ -1532,13 +1699,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return updated;
     });
-
-    // Update partner earnings and stats if delivery completed
-    setDeliveryPartnerState((prev) => ({
-      ...prev,
-      todayDeliveries: prev.todayDeliveries + 1,
-      todayEarnings: prev.todayEarnings + 60,
-    }));
   };
 
   const resetAllData = () => {

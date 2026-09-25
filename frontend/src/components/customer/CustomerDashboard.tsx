@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   ShoppingBag,
@@ -20,6 +20,8 @@ export const CustomerDashboard: React.FC = () => {
     cooks,
     orders,
     userSubscription,
+    subscriptions,
+    currentUser,
     setSelectedMealForOrder,
     setSelectedCookId,
     setCustomerTab,
@@ -32,10 +34,52 @@ export const CustomerDashboard: React.FC = () => {
 
   const followedCooksCount = cooks.filter((c) => c.isFollowing).length;
 
-  // Availability-aware matching (Doc 2 §8 & Doc 3 §2): filter for open slot capacity first
-  const recommendedMeals = [...meals]
-    .filter((m) => m.availableQty > 0)
-    .slice(0, 3);
+  const isCookFollowedOrSubscribed = (cookId?: string, cookName?: string) => {
+    if (!cookId && !cookName) return false;
+
+    // 1. Check if the cook is followed
+    const matchedCook = cooks.find(
+      (c) =>
+        (cookId && c.id === cookId) ||
+        (cookName &&
+          (c.name.toLowerCase().trim() === cookName.toLowerCase().trim() ||
+            (c.chefName && c.chefName.toLowerCase().trim() === cookName.toLowerCase().trim())))
+    );
+    if (matchedCook?.isFollowing) return true;
+
+    // 2. Check if customer has an active subscription with this cook
+    if (userSubscription && userSubscription.status === 'Active') {
+      if (cookId && userSubscription.cookId === cookId) return true;
+      if (
+        cookName &&
+        userSubscription.cookName &&
+        (userSubscription.cookName.toLowerCase().trim() === cookName.toLowerCase().trim() ||
+          (matchedCook && userSubscription.cookName.toLowerCase().trim() === matchedCook.name.toLowerCase().trim()))
+      ) {
+        return true;
+      }
+    }
+
+    // 3. Check active subscriptions in subscriptions list
+    const hasActiveSub = (subscriptions || []).some(
+      (s) =>
+        s.status === 'Active' &&
+        ((currentUser?.id && s.customerId === currentUser.id) ||
+          (currentUser?.name && s.customerName && s.customerName.toLowerCase().trim() === currentUser.name.toLowerCase().trim())) &&
+        ((cookId && s.cookId === cookId) ||
+          (cookName && s.cookName && s.cookName.toLowerCase().trim() === cookName.toLowerCase().trim()))
+    );
+    if (hasActiveSub) return true;
+
+    return false;
+  };
+
+  // Availability-aware matching: only show meals from cooks the user follows or subscribes to
+  const recommendedMeals = useMemo(() => {
+    return [...meals]
+      .filter((m) => isCookFollowedOrSubscribed(m.cookId, m.cookName) && m.availableQty > 0)
+      .slice(0, 6);
+  }, [meals, cooks, userSubscription, subscriptions, currentUser]);
   const topCooks = cooks.slice(0, 3);
 
   const handleCookProfileView = (cookId: string) => {
@@ -145,7 +189,7 @@ export const CustomerDashboard: React.FC = () => {
               </span>
             </div>
             <p className="text-xs text-[#564337]">
-              Based on your recent homestyle cravings, dietary habits, and neighbor ratings
+              Based on the home cooks you follow and your subscribed tiffin plans
             </p>
           </div>
           <button
@@ -157,99 +201,145 @@ export const CustomerDashboard: React.FC = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {recommendedMeals.map((meal) => (
-            <div
-              key={meal.id}
-              className="bg-white rounded-2xl border border-[#dcc1b1]/50 shadow-[0_4px_20px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col hover:shadow-md transition-all group"
-            >
-              {/* Image & Badges */}
-              <div className="h-48 w-full relative overflow-hidden bg-[#eeeeed]">
-                <img
-                  src={meal.image}
-                  alt={meal.name}
-                  onClick={() => meal.availableQty > 0 && setSelectedMealForOrder(meal)}
-                  className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${meal.availableQty > 0 ? 'cursor-pointer' : ''}`}
-                />
-                <div className="absolute top-3 left-3 flex gap-2">
-                  <span className="bg-[#d1e6c9]/95 text-[#51634c] text-[11px] font-bold px-2.5 py-1 rounded-full shadow-2xs backdrop-blur-xs">
-                    {meal.dietary}
-                  </span>
-                  <span className="bg-white/90 text-[#1a1c1c] text-[11px] font-semibold px-2 py-1 rounded-full shadow-2xs">
-                    {meal.category}
-                  </span>
-                </div>
-                <button
-                  onClick={() => toggleFollowCook(meal.cookId)}
-                  className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-xs rounded-full text-[#564337] hover:text-[#944a00] transition-colors shadow-2xs"
-                  title="Favorite Cook"
-                >
-                  <Heart className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Card Details */}
-              <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                <div>
-                  <div className="flex justify-between items-start gap-2">
-                    <h4 className="font-bold text-base text-[#1a1c1c] line-clamp-1 group-hover:text-[#944a00] transition-colors">
-                      {meal.name}
-                    </h4>
-                    <span className="font-extrabold text-lg text-[#944a00]">₹{meal.price}</span>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-xs text-[#564337] mt-2">
-                    <span className="flex items-center gap-1 font-medium">
-                      <User className="w-3.5 h-3.5 text-[#564337]" />
-                      <span>{meal.cookName}</span>
+        {recommendedMeals.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {recommendedMeals.map((meal) => (
+              <div
+                key={meal.id}
+                className="bg-white rounded-2xl border border-[#dcc1b1]/50 shadow-[0_4px_20px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col hover:shadow-md transition-all group"
+              >
+                {/* Image & Badges */}
+                <div className="h-48 w-full relative overflow-hidden bg-[#eeeeed]">
+                  <img
+                    src={meal.image}
+                    alt={meal.name}
+                    onClick={() => meal.availableQty > 0 && setSelectedMealForOrder(meal)}
+                    className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${meal.availableQty > 0 ? 'cursor-pointer' : ''}`}
+                  />
+                  <div className="absolute top-3 left-3 flex gap-2">
+                    <span className="bg-[#d1e6c9]/95 text-[#51634c] text-[11px] font-bold px-2.5 py-1 rounded-full shadow-2xs backdrop-blur-xs">
+                      {meal.dietary}
                     </span>
-                    <span>•</span>
-                    <span className="flex items-center gap-1 font-bold text-[#944a00]">
-                      <Star className="w-3.5 h-3.5 fill-[#e67e22] text-[#e67e22]" />
-                      <span>{meal.rating}</span>
+                    <span className="bg-white/90 text-[#1a1c1c] text-[11px] font-semibold px-2 py-1 rounded-full shadow-2xs">
+                      {meal.category}
                     </span>
-                    <span>•</span>
-                    <span>{meal.distanceKm} km</span>
                   </div>
-
-                  <p className="text-xs text-[#564337]/90 mt-2 line-clamp-2 leading-relaxed">
-                    {meal.description}
-                  </p>
+                  {(() => {
+                    const matchedCook = cooks.find(
+                      (c) =>
+                        (meal.cookId && c.id === meal.cookId) ||
+                        (meal.cookName && c.name.toLowerCase().trim() === meal.cookName.toLowerCase().trim())
+                    );
+                    const isFollowed = Boolean(matchedCook?.isFollowing);
+                    return (
+                      <button
+                        onClick={() => toggleFollowCook(meal.cookId)}
+                        className="absolute top-3 right-3 p-2 bg-white/95 backdrop-blur-xs rounded-full hover:bg-white transition-all shadow-2xs cursor-pointer group/heart"
+                        title={isFollowed ? 'Unfollow Cook' : 'Follow Cook & Add to Favorites'}
+                      >
+                        <Heart
+                          className={`w-4 h-4 transition-colors ${
+                            isFollowed ? 'fill-red-500 text-red-500' : 'text-[#564337] group-hover/heart:text-red-500'
+                          }`}
+                        />
+                      </button>
+                    );
+                  })()}
                 </div>
 
-                <div className="pt-2 border-t border-[#eeeeed] flex items-center justify-between">
-                  <span className="text-[11px] font-medium text-[#564337]">
-                    {meal.availableQty > 0 ? (
-                      <span className="text-[#51634c] font-semibold">
-                        ● {meal.availableQty} slots available
+                {/* Card Details */}
+                <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                  <div>
+                    <div className="flex justify-between items-start gap-2">
+                      <h4 className="font-bold text-base text-[#1a1c1c] line-clamp-1 group-hover:text-[#944a00] transition-colors">
+                        {meal.name}
+                      </h4>
+                      <span className="font-extrabold text-lg text-[#944a00]">₹{meal.price}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs text-[#564337] mt-2">
+                      <span className="flex items-center gap-1 font-medium">
+                        <User className="w-3.5 h-3.5 text-[#564337]" />
+                        <span>{meal.cookName}</span>
                       </span>
-                    ) : (
-                      <span className="text-amber-800 font-semibold">● Capacity Full</span>
-                    )}
-                  </span>
+                      <span>•</span>
+                      <span className="flex items-center gap-1 font-bold text-[#944a00]">
+                        <Star className="w-3.5 h-3.5 fill-[#e67e22] text-[#e67e22]" />
+                        <span>{meal.rating}</span>
+                      </span>
+                      <span>•</span>
+                      <span>{meal.distanceKm} km</span>
+                    </div>
 
-                  <button
-                    onClick={() => setSelectedMealForOrder(meal)}
-                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer flex items-center gap-1.5 ${
-                      meal.availableQty > 0
-                        ? 'bg-[#944a00] hover:bg-[#713700] text-white'
-                        : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
-                    }`}
-                  >
-                    {meal.availableQty > 0 ? (
-                      <>
-                        <ShoppingBag className="w-3.5 h-3.5" />
-                        <span>Add to Cart</span>
-                      </>
-                    ) : (
-                      'Join Waitlist'
-                    )}
-                  </button>
+                    <p className="text-xs text-[#564337]/90 mt-2 line-clamp-2 leading-relaxed">
+                      {meal.description}
+                    </p>
+                  </div>
+
+                  <div className="pt-2 border-t border-[#eeeeed] flex items-center justify-between">
+                    <span className="text-[11px] font-medium text-[#564337]">
+                      {meal.availableQty > 0 ? (
+                        <span className="text-[#51634c] font-semibold">
+                          ● {meal.availableQty} slots available
+                        </span>
+                      ) : (
+                        <span className="text-amber-800 font-semibold">● Capacity Full</span>
+                      )}
+                    </span>
+
+                    <button
+                      onClick={() => setSelectedMealForOrder(meal)}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer flex items-center gap-1.5 ${
+                        meal.availableQty > 0
+                          ? 'bg-[#944a00] hover:bg-[#713700] text-white'
+                          : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
+                      }`}
+                    >
+                      {meal.availableQty > 0 ? (
+                        <>
+                          <ShoppingBag className="w-3.5 h-3.5" />
+                          <span>Add to Cart</span>
+                        </>
+                      ) : (
+                        'Join Waitlist'
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border-2 border-dashed border-[#dcc1b1] p-8 sm:p-10 text-center flex flex-col items-center justify-center space-y-4 shadow-2xs">
+            <div className="w-14 h-14 bg-[#ffdcc5]/60 rounded-full flex items-center justify-center text-[#944a00] shadow-xs">
+              <Heart className="w-7 h-7" />
             </div>
-          ))}
-        </div>
+            <div className="max-w-md space-y-1.5">
+              <h4 className="text-base sm:text-lg font-bold text-[#1a1c1c]">
+                No Followed or Subscribed Cooks Yet
+              </h4>
+              <p className="text-xs sm:text-sm text-[#564337]">
+                Personalized dishes are shown from the home cooks you follow or subscribe to. Follow your favorite neighborhood chefs below or subscribe to unlock their fresh daily menus!
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <button
+                onClick={() => setCustomerTab('discover')}
+                className="px-5 py-2.5 bg-[#944a00] hover:bg-[#713700] text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Explore Neighborhood Cooks</span>
+              </button>
+              <button
+                onClick={() => setCustomerTab('subscriptions')}
+                className="px-5 py-2.5 bg-[#d1e6c9] hover:bg-[#b8d8ad] text-[#51634c] text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+              >
+                <CalendarCheck className="w-4 h-4" />
+                <span>View Tiffin Plans</span>
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Recommended Cooks Section */}

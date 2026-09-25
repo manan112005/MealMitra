@@ -34,26 +34,22 @@ export const CookSubscribers: React.FC = () => {
   const cookSubscribers = useMemo(() => {
     return (subscriptions || []).filter((sub) => {
       if (!currentCookProfile) return false;
-      const matchId =
-        sub.cookId &&
-        (sub.cookId === currentCookProfile.id ||
-          sub.cookId === 'cook-default');
 
-      const currentNames = [
-        currentCookProfile.name,
-        currentCookProfile.chefName,
-        'Magic mom',
-        'Home Kitchen',
-      ]
-        .filter(Boolean)
-        .map((n) => n!.toLowerCase().trim());
+      // 1. Check exact cookId match
+      const matchId = Boolean(sub.cookId && sub.cookId === currentCookProfile.id);
 
+      // 2. Check cook/chef name match
+      const cookNameNormalized = (currentCookProfile.name || '').toLowerCase().trim();
+      const chefNameNormalized = (currentCookProfile.chefName || '').toLowerCase().trim();
       const subCookName = (sub.cookName || '').toLowerCase().trim();
-      const matchName =
-        !sub.cookName ||
-        currentNames.some(
-          (cn) => subCookName.includes(cn) || cn.includes(subCookName) || subCookName.includes('kitchen')
-        );
+
+      const matchName = Boolean(
+        subCookName &&
+        (subCookName === cookNameNormalized ||
+          subCookName === chefNameNormalized ||
+          (cookNameNormalized && (subCookName.includes(cookNameNormalized) || cookNameNormalized.includes(subCookName))) ||
+          (chefNameNormalized && (subCookName.includes(chefNameNormalized) || chefNameNormalized.includes(subCookName))))
+      );
 
       const matchesCook = matchId || matchName;
       if (!matchesCook) return false;
@@ -68,8 +64,7 @@ export const CookSubscribers: React.FC = () => {
       const matchesPlan =
         selectedPlanFilter === 'All' ||
         sub.planId === selectedPlanFilter ||
-        sub.planName.toLowerCase().includes(selectedPlanFilter.toLowerCase()) ||
-        selectedPlanFilter.toLowerCase().includes(sub.planName.toLowerCase());
+        sub.planName.toLowerCase().trim() === selectedPlanFilter.toLowerCase().trim();
 
       return matchesStatus && matchesCategory && matchesPlan;
     });
@@ -81,10 +76,7 @@ export const CookSubscribers: React.FC = () => {
       const matchingSubs = cookSubscribers.filter((s) => {
         const isExactPlan =
           s.planId === plan.id ||
-          s.planName.toLowerCase() === plan.name.toLowerCase() ||
-          s.planName.toLowerCase().includes(plan.name.toLowerCase()) ||
-          plan.name.toLowerCase().includes(s.planName.toLowerCase()) ||
-          (s.planCategory === plan.category && s.planPeriod === plan.type);
+          s.planName.toLowerCase().trim() === plan.name.toLowerCase().trim();
         return isExactPlan;
       });
 
@@ -103,11 +95,9 @@ export const CookSubscribers: React.FC = () => {
 
   const totalMonthlyRevenue = useMemo(() => {
     return cookSubscribers.reduce((sum, s) => {
-      const defaultPrice =
-        cookPlans.find((p) => p.name === s.planName || p.category === s.planCategory)?.price || 3496;
-      return sum + (s.planPrice || defaultPrice);
+      return sum + (s.planPrice || 0);
     }, 0);
-  }, [cookSubscribers, cookPlans]);
+  }, [cookSubscribers]);
 
   const handleToggleSubscriberStatus = (subId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'Active' ? 'Paused' : 'Active';

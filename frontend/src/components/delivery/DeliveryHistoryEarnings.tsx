@@ -19,52 +19,30 @@ interface Props {
 }
 
 export const DeliveryHistoryEarnings: React.FC<Props> = ({ defaultTab = 'earnings' }) => {
-  const { deliveryPartnerState } = useApp();
+  const { deliveryPartnerState, orders, routeStops } = useApp();
   const partner = deliveryPartnerState || MOCK_DELIVERY_PARTNER_STATE;
   const [activeTab, setActiveTab] = useState<'earnings' | 'history' | 'performance'>(defaultTab);
 
-  const pastTrips = [
-    {
-      id: 'TRIP-8921',
-      date: 'Today, 12:45 PM',
-      cluster: 'Bodakdev Cluster #4 (3 Tiffins)',
-      distanceKm: 4.8,
-      durationMins: 24,
-      amount: 140,
-      breakdown: 'Base ₹80 + Cluster Bonus ₹40 + Tip ₹20',
+  const completedOrders = (orders || []).filter((o) => o.status === 'Delivered');
+  const totalCompletedCount = completedOrders.length;
+  const tripEarnings = totalCompletedCount * 60;
+
+  const dynamicTrips = completedOrders.map((ord, idx) => {
+    const addressStr = typeof ord.customerAddress === 'string' 
+      ? ord.customerAddress 
+      : (ord.customerAddress as any)?.area || 'Navrangpura Cluster';
+
+    return {
+      id: `TRIP-${ord.id.slice(-6).toUpperCase() || (9000 + idx)}`,
+      date: ord.orderDate || ord.orderTime || 'Today',
+      cluster: `${addressStr} • ${ord.mealName}`,
+      distanceKm: 2.8,
+      durationMins: 16,
+      amount: 60,
+      breakdown: 'Base ₹35 + Cluster Batch Bonus ₹25',
       status: 'Completed',
-    },
-    {
-      id: 'TRIP-8890',
-      date: 'Yesterday, 8:15 PM',
-      cluster: 'Satellite Evening Cluster (4 Tiffins)',
-      distanceKm: 6.2,
-      durationMins: 32,
-      amount: 195,
-      breakdown: 'Base ₹110 + Cluster Bonus ₹55 + Tip ₹30',
-      status: 'Completed',
-    },
-    {
-      id: 'TRIP-8845',
-      date: 'Yesterday, 1:10 PM',
-      cluster: 'Navrangpura Office Cluster (5 Tiffins)',
-      distanceKm: 7.1,
-      durationMins: 35,
-      amount: 240,
-      breakdown: 'Base ₹140 + Cluster Bonus ₹70 + Tip ₹30',
-      status: 'Completed',
-    },
-    {
-      id: 'TRIP-8812',
-      date: 'Aug 18, 2026',
-      cluster: 'Vastrapur Lunch Cluster (3 Tiffins)',
-      distanceKm: 4.2,
-      durationMins: 20,
-      amount: 130,
-      breakdown: 'Base ₹80 + Cluster Bonus ₹40 + Tip ₹10',
-      status: 'Completed',
-    },
-  ];
+    };
+  });
 
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
@@ -99,7 +77,7 @@ export const DeliveryHistoryEarnings: React.FC<Props> = ({ defaultTab = 'earning
                 : 'text-[#564337] hover:text-[#1a1c1c]'
             }`}
           >
-            Trips ({pastTrips.length})
+            Trips ({dynamicTrips.length})
           </button>
           <button
             onClick={() => setActiveTab('performance')}
@@ -120,20 +98,20 @@ export const DeliveryHistoryEarnings: React.FC<Props> = ({ defaultTab = 'earning
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             <div className="bg-white p-6 rounded-2xl border border-[#dcc1b1]/60 shadow-2xs space-y-2">
               <div className="text-xs font-bold text-[#564337]">Today's Earnings</div>
-              <div className="text-3xl font-black text-[#51634c]">₹{partner.todayEarnings}</div>
-              <div className="text-[11px] text-[#564337]">14 deliveries completed today</div>
+              <div className="text-3xl font-black text-[#51634c]">₹{tripEarnings}</div>
+              <div className="text-[11px] text-[#564337]">{totalCompletedCount} deliveries completed today</div>
             </div>
 
             <div className="bg-white p-6 rounded-2xl border border-[#dcc1b1]/60 shadow-2xs space-y-2">
               <div className="text-xs font-bold text-[#564337]">Weekly Earnings</div>
-              <div className="text-3xl font-black text-[#4e6074]">₹5,820</div>
-              <div className="text-[11px] text-[#51634c] font-bold">+₹750 Cluster Batch Bonuses</div>
+              <div className="text-3xl font-black text-[#4e6074]">₹{tripEarnings + 450}</div>
+              <div className="text-[11px] text-[#51634c] font-bold">Cluster Batch Multiplier Active</div>
             </div>
 
             <div className="bg-white p-6 rounded-2xl border border-[#dcc1b1]/60 shadow-2xs space-y-2">
               <div className="text-xs font-bold text-[#564337]">Monthly Total</div>
-              <div className="text-3xl font-black text-[#1a1c1c]">₹24,650</div>
-              <div className="text-[11px] text-[#564337]">Direct transfer to bank account</div>
+              <div className="text-3xl font-black text-[#1a1c1c]">₹{tripEarnings + 1850}</div>
+              <div className="text-[11px] text-[#564337]">Direct transfer to verified bank account</div>
             </div>
           </div>
 
@@ -181,34 +159,46 @@ export const DeliveryHistoryEarnings: React.FC<Props> = ({ defaultTab = 'earning
             Recent Cluster Trip History
           </h3>
 
-          <div className="space-y-3">
-            {pastTrips.map((trip) => (
-              <div
-                key={trip.id}
-                className="bg-white rounded-2xl border border-[#dcc1b1]/50 p-5 shadow-2xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-sm text-[#1a1c1c]">{trip.id}</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#d1e6c9] text-[#51634c]">
-                      ✓ {trip.status}
-                    </span>
-                    <span className="text-xs text-[#564337]">{trip.date}</span>
-                  </div>
-
-                  <div className="text-xs font-semibold text-[#1a1c1c]">{trip.cluster}</div>
-                  <div className="text-[11px] text-[#564337]">
-                    {trip.distanceKm} km • {trip.durationMins} mins • {trip.breakdown}
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <div className="text-base font-extrabold text-[#51634c]">₹{trip.amount}</div>
-                  <span className="text-[10px] text-[#564337]">Settled to wallet</span>
-                </div>
+          {dynamicTrips.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-[#dcc1b1]/60 p-12 text-center shadow-2xs space-y-3">
+              <div className="w-12 h-12 rounded-full bg-[#f4ece4] flex items-center justify-center mx-auto text-[#944a00]">
+                <Bike className="w-6 h-6" />
               </div>
-            ))}
-          </div>
+              <h4 className="text-sm font-bold text-[#1a1c1c]">No Completed Trips Yet</h4>
+              <p className="text-xs text-[#564337] max-w-sm mx-auto">
+                Completed pickup and drop batches will automatically appear in your trip log with calculated earnings and payout breakdown.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {dynamicTrips.map((trip) => (
+                <div
+                  key={trip.id}
+                  className="bg-white rounded-2xl border border-[#dcc1b1]/50 p-5 shadow-2xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-sm text-[#1a1c1c]">{trip.id}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#d1e6c9] text-[#51634c]">
+                        ✓ {trip.status}
+                      </span>
+                      <span className="text-xs text-[#564337]">{trip.date}</span>
+                    </div>
+
+                    <div className="text-xs font-semibold text-[#1a1c1c]">{trip.cluster}</div>
+                    <div className="text-[11px] text-[#564337]">
+                      {trip.distanceKm} km • {trip.durationMins} mins • {trip.breakdown}
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div className="text-base font-extrabold text-[#51634c]">₹{trip.amount}</div>
+                    <span className="text-[10px] text-[#564337]">Settled to wallet</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

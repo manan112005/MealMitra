@@ -48,11 +48,17 @@ export const CookEarningsAnalytics: React.FC = () => {
   const cookSubscribers = useMemo(() => {
     if (!currentCookProfile) return [];
     return (subscriptions || []).filter((sub) => {
-      const matchId = sub.cookId && (sub.cookId === currentCookProfile.id || sub.cookId === 'cook-default');
-      const matchName =
-        sub.cookName &&
-        (sub.cookName.toLowerCase() === currentCookProfile.name.toLowerCase() ||
-          sub.cookName.toLowerCase() === 'home kitchen');
+      const matchId = Boolean(sub.cookId && sub.cookId === currentCookProfile.id);
+      const cookNameNormalized = (currentCookProfile.name || '').toLowerCase().trim();
+      const chefNameNormalized = (currentCookProfile.chefName || '').toLowerCase().trim();
+      const subCookName = (sub.cookName || '').toLowerCase().trim();
+      const matchName = Boolean(
+        subCookName &&
+        (subCookName === cookNameNormalized ||
+          subCookName === chefNameNormalized ||
+          (cookNameNormalized && (subCookName.includes(cookNameNormalized) || cookNameNormalized.includes(subCookName))) ||
+          (chefNameNormalized && (subCookName.includes(chefNameNormalized) || chefNameNormalized.includes(subCookName))))
+      );
       return matchId || matchName;
     });
   }, [subscriptions, currentCookProfile]);

@@ -38,11 +38,17 @@ export const CookDashboard: React.FC = () => {
 
   const cookSubscribers = (subscriptions || []).filter((sub) => {
     if (!currentCookProfile) return false;
-    const matchId = sub.cookId && (sub.cookId === currentCookProfile.id || sub.cookId === 'cook-default');
-    const matchName =
-      sub.cookName &&
-      (sub.cookName.toLowerCase() === currentCookProfile.name.toLowerCase() ||
-        sub.cookName.toLowerCase() === 'home kitchen');
+    const matchId = Boolean(sub.cookId && sub.cookId === currentCookProfile.id);
+    const cookNameNormalized = (currentCookProfile.name || '').toLowerCase().trim();
+    const chefNameNormalized = (currentCookProfile.chefName || '').toLowerCase().trim();
+    const subCookName = (sub.cookName || '').toLowerCase().trim();
+    const matchName = Boolean(
+      subCookName &&
+      (subCookName === cookNameNormalized ||
+        subCookName === chefNameNormalized ||
+        (cookNameNormalized && (subCookName.includes(cookNameNormalized) || cookNameNormalized.includes(subCookName))) ||
+        (chefNameNormalized && (subCookName.includes(chefNameNormalized) || chefNameNormalized.includes(subCookName))))
+    );
     return matchId || matchName;
   });
 
@@ -250,7 +256,7 @@ export const CookDashboard: React.FC = () => {
           <div className="bg-white p-4 rounded-xl border border-[#dcc1b1]/40 space-y-1">
             <div className="font-bold text-[#4e6074]">📦 Packaging & Delivery Prep</div>
             <p className="text-[#564337] text-[11px]">
-              Delivery partner Ramesh Patel scheduled for 12:45 PM cluster pickup.
+              Assigned cluster delivery partner scheduled for 12:45 PM batch pickup.
             </p>
             <div className="font-bold text-[#1a1c1c] text-[11px] pt-1">Pickup Window: 12:45 – 1:00 PM</div>
           </div>

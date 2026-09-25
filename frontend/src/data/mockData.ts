@@ -475,14 +475,14 @@ export const MOCK_SMART_CLUSTER_STOPS: ClusterRouteStop[] = [];
 
 export const MOCK_DELIVERY_PARTNER_STATE: DeliveryPartnerState = {
   id: 'partner-1',
-  name: 'Ramesh Patel',
-  phone: '+91 98980 11223',
-  vehicle: 'Honda Activa (GJ-01-EF-4821)',
+  name: 'Delivery Partner',
+  phone: '',
+  vehicle: 'Two-Wheeler (EV / Bike)',
   isOnDuty: true,
-  activeCluster: 'Bodakdev - SG Highway Cluster #4',
+  activeCluster: 'Ahmedabad Central Cluster',
   todayDeliveries: 0,
   todayEarnings: 0,
-  rating: 4.9,
+  rating: 5.0,
 };
 
 export const MOCK_ROUTE_STOPS: RouteStop[] = [];

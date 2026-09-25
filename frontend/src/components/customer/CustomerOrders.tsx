@@ -43,7 +43,7 @@ export const CustomerOrders: React.FC = () => {
   ];
 
   const getStepIndex = (status: OrderStatus) => {
-    if (status === 'Slot Reserved' || status === 'Placed') return 0;
+    if (status === 'Slot Reserved' || (status as string) === 'Placed') return 0;
     if (status === 'Confirmed') return 1;
     if (status === 'Preparing') return 2;
     if (status === 'Picked Up' || status === 'Out for Delivery' || status === 'Meal Ready') return 3;
@@ -295,7 +295,7 @@ export const CustomerOrders: React.FC = () => {
                         <strong>
                           {order.fulfillmentType === 'Pickup'
                             ? `${order.cookName}'s Kitchen`
-                            : order.deliveryPartnerName || 'Ramesh Patel (Cluster Partner)'}
+                            : order.deliveryPartnerName || 'Assigned Cluster Delivery Partner'}
                         </strong>
                       </div>
                       <div className="flex items-center gap-1 text-[11px] text-[#564337]">

@@ -154,14 +154,19 @@ export const Sidebar: React.FC = () => {
         {role === 'delivery' && (
           <div className="flex items-center gap-3">
             <img
-              src={currentUser?.avatar || "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80"}
-              alt={currentUser?.name || "Ramesh Patel"}
+              src={
+                currentUser?.avatar ||
+                `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><rect width="100%" height="100%" fill="%23d1e4fc"/><text x="50%" y="54%" font-size="44" font-weight="bold" fill="%234e6074" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif">${encodeURIComponent(
+                  (currentUser?.name || 'Delivery Partner').trim().charAt(0).toUpperCase()
+                )}</text></svg>`
+              }
+              alt={currentUser?.name || "Delivery Partner"}
               className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm shrink-0"
             />
             <div className="overflow-hidden">
-              <p className="text-xs font-bold text-[#1a1c1c] truncate">{currentUser?.name || 'Ramesh Patel'}</p>
+              <p className="text-xs font-bold text-[#1a1c1c] truncate">{currentUser?.name || 'Delivery Partner'}</p>
               <p className="text-[11px] text-[#4e6074] font-medium flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-blue-500"></span> On Duty • 4.8★
+                <span className="w-2 h-2 rounded-full bg-blue-500"></span> On Duty • 4.9★
               </p>
             </div>
           </div>

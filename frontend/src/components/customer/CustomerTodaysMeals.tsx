@@ -339,7 +339,7 @@ export const CustomerTodaysMeals: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredMeals.map((meal) => {
-            const cook = cooks.find((c) => c.id === meal.cookId) || currentCookProfile;
+            const cook = cooks.find((c) => c.id === meal.cookId || (meal.cookName && c.name.toLowerCase().trim() === meal.cookName.toLowerCase().trim())) || (currentCookProfile && currentCookProfile.id === meal.cookId ? currentCookProfile : null);
             const isSoldOut = meal.availableQty <= 0;
 
             return (

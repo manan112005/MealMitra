@@ -34,17 +34,17 @@ export const CookSubscriptions: React.FC = () => {
   const cookSubscribersList = useMemo(() => {
     return (subscriptions || []).filter((sub) => {
       if (!currentCookProfile) return false;
-      const matchId =
-        sub.cookId &&
-        (sub.cookId === currentCookProfile.id || sub.cookId === 'cook-default');
-      const currentNames = [
-        currentCookProfile.name,
-        currentCookProfile.chefName,
-        'Magic mom',
-        'Home Kitchen',
-      ].filter(Boolean).map((n) => n!.toLowerCase().trim());
+      const matchId = Boolean(sub.cookId && sub.cookId === currentCookProfile.id);
+      const cookNameNormalized = (currentCookProfile.name || '').toLowerCase().trim();
+      const chefNameNormalized = (currentCookProfile.chefName || '').toLowerCase().trim();
       const subCookName = (sub.cookName || '').toLowerCase().trim();
-      const matchName = !sub.cookName || currentNames.some((cn) => subCookName.includes(cn) || cn.includes(subCookName));
+      const matchName = Boolean(
+        subCookName &&
+        (subCookName === cookNameNormalized ||
+          subCookName === chefNameNormalized ||
+          (cookNameNormalized && (subCookName.includes(cookNameNormalized) || cookNameNormalized.includes(subCookName))) ||
+          (chefNameNormalized && (subCookName.includes(chefNameNormalized) || chefNameNormalized.includes(subCookName))))
+      );
       return matchId || matchName;
     });
   }, [subscriptions, currentCookProfile]);
@@ -343,10 +343,7 @@ export const CookSubscriptions: React.FC = () => {
                         cookSubscribersList.filter(
                           (s) =>
                             s.planId === plan.id ||
-                            s.planName.toLowerCase() === plan.name.toLowerCase() ||
-                            s.planName.toLowerCase().includes(plan.name.toLowerCase()) ||
-                            plan.name.toLowerCase().includes(s.planName.toLowerCase()) ||
-                            (s.planCategory === plan.category && s.planPeriod === plan.type)
+                            s.planName.toLowerCase().trim() === plan.name.toLowerCase().trim()
                         ).length
                       }{' '}
                       Subscribers
