@@ -56,10 +56,11 @@ export const Sidebar: React.FC = () => {
   if (role === 'entry') return null;
 
   // Customer navigation items
-  const customerNavItems: { id: CustomerTab; label: string; icon: any }[] = [
+  const customerNavItems: { id: CustomerTab; label: string; icon: any; isSpecial?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'discover', label: 'Discover Cooks', icon: Compass },
     { id: 'meals', label: "Today's Meals", icon: Utensils },
+    { id: 'ai-coach', label: 'Mitra AI Diet Coach', icon: Sparkles, isSpecial: true },
     { id: 'subscriptions', label: 'Tiffin Plans', icon: Repeat },
     { id: 'orders', label: 'Orders & Tracking', icon: ShoppingBag },
     { id: 'following', label: 'Following', icon: Heart },
@@ -216,14 +217,22 @@ export const Sidebar: React.FC = () => {
               <button
                 key={item.id}
                 onClick={() => handleCustomerNav(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all text-left ${
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-semibold transition-all text-left ${
                   isActive
                     ? 'bg-[#ffdcc5]/60 text-[#944a00] border-l-4 border-[#944a00] font-bold shadow-2xs'
                     : 'text-[#564337] hover:bg-[#eeeeed] hover:text-[#1a1c1c]'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-[#944a00]' : 'text-[#564337]'}`} />
-                <span>{item.label}</span>
+                <div className="flex items-center gap-3">
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-[#944a00]' : item.isSpecial ? 'text-[#ff6d00] animate-pulse' : 'text-[#564337]'}`} />
+                  <span>{item.label}</span>
+                </div>
+
+                {item.isSpecial && (
+                  <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-gradient-to-r from-[#ff6d00] to-[#e65100] text-white shadow-2xs">
+                    AI
+                  </span>
+                )}
               </button>
             );
           })}

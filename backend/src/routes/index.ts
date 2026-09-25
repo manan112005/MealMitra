@@ -8,6 +8,7 @@ import mealRoutes from "./meal.routes.js";
 import orderRoutes from "./order.routes.js";
 import subscriptionRoutes from "./subscription.routes.js";
 import paymentRoutes from "./payment.routes.js";
+import aiRoutes from "./ai.routes.js";
 
 const apiV1Router = Router();
 
@@ -21,5 +22,6 @@ apiV1Router.use("/meals", mealRoutes);
 apiV1Router.use("/orders", orderRoutes);
 apiV1Router.use("/subscriptions", subscriptionRoutes);
 apiV1Router.use("/payments", paymentRoutes);
+apiV1Router.use("/ai", aiRoutes);
 
 export default apiV1Router;

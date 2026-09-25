@@ -16,6 +16,7 @@ import {
   Wallet,
   Home,
   ArrowLeft,
+  Sparkles,
 } from 'lucide-react';
 
 export const MobileNav: React.FC = () => {
@@ -68,6 +69,18 @@ export const MobileNav: React.FC = () => {
           >
             <Compass className="w-5 h-5 mb-0.5" />
             <span>Discover</span>
+          </button>
+          <button
+            onClick={() => {
+              setSelectedCookId(null);
+              setCustomerTab('ai-coach');
+            }}
+            className={`flex flex-col items-center py-1 px-1.5 rounded-lg text-[10px] font-semibold transition-colors relative ${
+              customerTab === 'ai-coach' ? 'text-[#ff6d00] font-bold' : 'text-[#564337]'
+            }`}
+          >
+            <Sparkles className="w-5 h-5 mb-0.5 text-[#ff6d00]" />
+            <span>Mitra AI</span>
           </button>
           <button
             onClick={() => setCustomerTab('orders')}

@@ -12,6 +12,7 @@ export type CustomerTab =
   | 'dashboard'
   | 'discover'
   | 'meals'
+  | 'ai-coach'
   | 'subscriptions'
   | 'orders'
   | 'following'

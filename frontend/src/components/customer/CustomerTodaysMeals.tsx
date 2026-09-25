@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Meal, CookProfile } from '../../types';
+import { AICravingSearch } from './AICravingSearch';
 import {
   Utensils,
   Filter,
@@ -216,6 +217,9 @@ export const CustomerTodaysMeals: React.FC = () => {
           </select>
         </div>
       </div>
+
+      {/* AI Smart Craving & Mood Search Bar */}
+      <AICravingSearch />
 
       {/* 1. Day Selector Bar (Horizontal Scrollable Tabs) */}
       <div className="bg-white p-3 rounded-2xl border border-[#dcc1b1]/60 shadow-2xs space-y-2">

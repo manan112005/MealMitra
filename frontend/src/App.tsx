@@ -11,6 +11,7 @@ import { EntryScreen } from './components/entry/EntryScreen';
 import { CustomerDashboard } from './components/customer/CustomerDashboard';
 import { CustomerDiscover } from './components/customer/CustomerDiscover';
 import { CustomerTodaysMeals } from './components/customer/CustomerTodaysMeals';
+import { MitraAICoach } from './components/customer/MitraAICoach';
 import { CustomerOrders } from './components/customer/CustomerOrders';
 import { CustomerSubscriptions } from './components/customer/CustomerSubscriptions';
 import { CustomerFollowingReviews } from './components/customer/CustomerFollowingReviews';
@@ -100,6 +101,7 @@ const MainLayout: React.FC = () => {
                 {customerTab === 'dashboard' && <CustomerDashboard />}
                 {customerTab === 'discover' && <CustomerDiscover />}
                 {customerTab === 'meals' && <CustomerTodaysMeals />}
+                {customerTab === 'ai-coach' && <MitraAICoach />}
                 {customerTab === 'orders' && <CustomerOrders />}
                 {customerTab === 'subscriptions' && <CustomerSubscriptions />}
                 {customerTab === 'following' && <CustomerFollowingReviews viewMode="following" />}
@@ -152,6 +154,26 @@ const MainLayout: React.FC = () => {
 
       {/* Mobile Bottom Navigation Bar */}
       <MobileNav />
+
+      {/* Floating Mitra AI Assistant Quick Launcher for Customer */}
+      {role === 'customer' && customerTab !== 'ai-coach' && (
+        <button
+          onClick={() => {
+            setSelectedCookId(null);
+            setCustomerTab('ai-coach');
+          }}
+          className="fixed bottom-20 lg:bottom-8 right-5 sm:right-8 z-30 flex items-center gap-2 px-4 py-3 rounded-full bg-gradient-to-r from-[#ff6d00] to-[#e65100] text-white font-extrabold text-xs sm:text-sm shadow-xl hover:shadow-2xl hover:brightness-105 hover:scale-105 active:scale-95 transition-all border-2 border-white/60 cursor-pointer group"
+          title="Open Mitra AI Diet & Calorie Coach"
+        >
+          <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+            <span className="text-sm">✨</span>
+          </div>
+          <span className="tracking-tight">Mitra AI Coach</span>
+          <span className="text-[10px] bg-white text-[#b34700] px-1.5 py-0.5 rounded-full font-black">
+            DIET
+          </span>
+        </button>
+      )}
 
       {/* Global Meal Order Checkout Modal */}
       {selectedMealForOrder && (

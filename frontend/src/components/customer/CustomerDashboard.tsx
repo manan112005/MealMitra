@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
+import { AICravingSearch } from './AICravingSearch';
 import {
   ShoppingBag,
   CalendarCheck,
@@ -12,6 +13,8 @@ import {
   MapPin,
   Flame,
   CheckCircle,
+  Activity,
+  ChevronRight,
 } from 'lucide-react';
 
 export const CustomerDashboard: React.FC = () => {
@@ -100,14 +103,54 @@ export const CustomerDashboard: React.FC = () => {
               Reserve fresh homemade tiffins from neighborhood kitchens. Finite batches cooked fresh daily.
             </p>
           </div>
-          <button
-            onClick={() => setCustomerTab('meals')}
-            className="self-start sm:self-auto px-4 py-2.5 bg-[#944a00] hover:bg-[#713700] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-2"
-          >
-            <Flame className="w-4 h-4" />
-            <span>Explore Today's Slots</span>
-          </button>
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setCustomerTab('ai-coach')}
+              className="px-4 py-2.5 bg-gradient-to-r from-[#ff6d00] to-[#e65100] hover:brightness-105 text-white text-xs font-black rounded-xl shadow-xs transition-all flex items-center gap-2 active:scale-95"
+            >
+              <Sparkles className="w-4 h-4 animate-pulse" />
+              <span>Mitra AI Diet Coach</span>
+            </button>
+            <button
+              onClick={() => setCustomerTab('meals')}
+              className="self-start sm:self-auto px-4 py-2.5 bg-[#944a00] hover:bg-[#713700] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center gap-2"
+            >
+              <Flame className="w-4 h-4" />
+              <span>Today's Slots</span>
+            </button>
+          </div>
         </div>
+      </section>
+
+      {/* Feature 2: AI Meal Mood & Smart Craving Search Bar */}
+      <AICravingSearch />
+
+      {/* Feature 1 Promo Spotlight: AI Diet & Calorie Coach Card */}
+      <section className="bg-gradient-to-r from-[#1a1c1c] via-[#2d2c2b] to-[#1a1c1c] text-white p-5 sm:p-6 rounded-3xl border border-[#444] shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#ff6d00] to-[#ff9100] text-white flex items-center justify-center shrink-0 shadow-md">
+            <Activity className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-[#ffdcc5] mb-0.5">
+              <Sparkles className="w-3.5 h-3.5 text-[#ff6d00]" /> Personalized Nutrition
+            </div>
+            <h3 className="text-base sm:text-lg font-black text-white">
+              Diabetic-friendly, Low Sodium, or High Protein?
+            </h3>
+            <p className="text-xs sm:text-sm text-[#ccc] mt-0.5 max-w-xl">
+              Set your clinical diet targets or snap a meal picture. Mitra AI filters menus with verified portion-controlled ingredients.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setCustomerTab('ai-coach')}
+          className="self-end md:self-auto px-4 py-2.5 rounded-xl bg-white text-[#1a1c1c] text-xs font-black hover:bg-[#ffefe3] hover:text-[#944a00] active:scale-95 transition-all shadow-md shrink-0 flex items-center gap-1.5"
+        >
+          <span>Open AI Coach</span>
+          <ChevronRight className="w-4 h-4" />
+        </button>
       </section>
 
       {/* Quick Metrics Grid */}
