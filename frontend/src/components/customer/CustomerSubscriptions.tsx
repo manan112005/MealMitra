@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { SubscriptionPlan, CookProfile } from '../../types';
-import { paymentService } from '../../services/payment.service';
+import { RazorpayCheckoutModal } from '../common/RazorpayCheckoutModal';
 import {
   CalendarDays,
   CheckCircle2,
