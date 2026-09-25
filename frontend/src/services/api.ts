@@ -123,6 +123,14 @@ class ApiClient {
     });
   }
 
+  put<T = any>(endpoint: string, body?: any, options?: RequestInit): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, {
+      ...options,
+      method: 'PUT',
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+
   delete<T = any>(endpoint: string, options?: RequestInit): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { ...options, method: 'DELETE' });
   }

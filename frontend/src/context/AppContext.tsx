@@ -35,6 +35,10 @@ import {
   MOCK_ROUTE_STOPS,
   INITIAL_WEEKLY_MENU,
 } from '../data/mockData';
+import { cookService } from '../services/cook.service';
+import { mealService } from '../services/meal.service';
+import { orderService } from '../services/order.service';
+import { subscriptionService } from '../services/subscription.service';
 
 interface AppContextType {
   role: UserRole;
@@ -689,28 +693,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setDeliveryAssignments((prev) => [newDelivery, ...prev]);
     }
 
-    // Backend sync with SQLite
-    fetch('http://localhost:3001/api/reservations/reserve', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        reservationId: newOrderId,
-        cookId: orderData.meal.cookId,
+    // Backend sync with central MealMitra backend
+    orderService
+      .placeOrder({
         mealId: orderData.meal.id,
-        bookingType: orderData.bookingType || 'one_time',
-        bookingDate: chosenDate,
-        mealPeriod: chosenPeriod,
-        fulfillmentType: orderData.fulfillmentType || 'Delivery',
         quantity: orderData.quantity,
         address: newOrder.customerAddress,
         phone: newOrder.customerPhone,
         timeSlot: orderData.timeSlot,
         specialNotes: orderData.specialNotes,
-        totalAmount: newOrder.totalAmount,
-      }),
-    }).catch(() => {
-      // Backend optional / offline fallback
-    });
+        bookingDate: chosenDate,
+        mealPeriod: chosenPeriod,
+        fulfillmentType: orderData.fulfillmentType || 'Delivery',
+        bookingType: orderData.bookingType || 'one_time',
+      })
+      .catch((err) => {
+        console.warn('Order backend sync note:', err);
+      });
 
     addNotification({
       title: 'Order Placed Successfully',
@@ -741,18 +740,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setWaitlist((prev) => [newEntry, ...prev]);
 
     try {
-      await fetch('http://localhost:3001/api/reservations/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cookId: data.cookId,
-          mealId: data.mealId,
-          customerName: data.customerName,
-          customerPhone: data.customerPhone,
-          bookingDate: data.date,
-          mealPeriod: data.mealPeriod,
-        }),
-      });
+      await orderService.joinWaitlist(data);
     } catch (err) {
       console.warn('Waitlist backend sync note:', err);
     }
@@ -788,16 +776,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     try {
-      await fetch('http://localhost:3001/api/subscriptions/skip', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subscriptionId: userSubscription.id,
-          cookId: cooks.find((c) => c.name === userSubscription.cookName)?.id || 'cook-1',
-          date,
-          mealPeriod,
-        }),
-      });
+      await subscriptionService.skipMealSlot(userSubscription.id, slotId, date, mealPeriod);
     } catch (err) {
       console.warn('Skip sync note:', err);
     }

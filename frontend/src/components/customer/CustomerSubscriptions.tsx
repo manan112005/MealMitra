@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { SubscriptionPlan, CookProfile } from '../../types';
-import { loadRazorpay } from '../../utils/razorpay';
+import { paymentService } from '../../services/payment.service';
 import {
   CalendarDays,
   CheckCircle2,
@@ -151,76 +151,42 @@ export const CustomerSubscriptions: React.FC = () => {
     const discount = useRewardPoints ? 125 : 0;
     const finalAmount = Math.max(0, selectedPlanForPayment.price - discount);
 
-    // If Razorpay gateway option is selected, attempt to trigger it
-    if (paymentMethod === 'razorpay') {
-      try {
-        const isLoaded = await loadRazorpay();
-        if (isLoaded) {
-          const response = await fetch('http://localhost:3001/api/payments/create-order', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'subscription',
-              subscriptionId: selectedPlanForPayment.id,
-              amount: finalAmount,
-            }),
-          }).catch(() => null);
-
-          if (response && response.ok) {
-            const orderData = await response.json();
-            const options = {
-              key: orderData.key,
-              amount: orderData.amount,
-              currency: orderData.currency,
-              name: 'MealMitra Subscriptions',
-              description: `Subscription: ${selectedPlanForPayment.name} (${selectedCook.name})`,
-              order_id: orderData.orderId,
-              handler: async (paymentRes: any) => {
-                try {
-                  await fetch('http://localhost:3001/api/payments/verify', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      razorpay_order_id: paymentRes.razorpay_order_id,
-                      razorpay_payment_id: paymentRes.razorpay_payment_id,
-                      razorpay_signature: paymentRes.razorpay_signature,
-                    }),
-                  }).catch(() => null);
-
-                  finalizeSubscriptionSuccess(finalAmount);
-                } catch {
-                  finalizeSubscriptionSuccess(finalAmount);
-                }
-              },
-              prefill: {
-                name: currentUser?.name || 'Customer',
-                contact: currentUser?.phone || '+91 98251 23456',
-              },
-              theme: { color: '#944a00' },
-              modal: {
-                ondismiss: () => {
-                  setIsProcessingPayment(false);
-                },
-              },
-            };
-
-            const rzp = new (window as any).Razorpay(options);
-            rzp.on('payment.failed', function () {
-              finalizeSubscriptionSuccess(finalAmount);
-            });
-            rzp.open();
-            return;
+    try {
+      await paymentService.openCheckout({
+        amount: finalAmount,
+        name: 'MealMitra Subscriptions',
+        description: `Subscription: ${selectedPlanForPayment.name} (${selectedCook.name})`,
+        prefill: {
+          name: currentUser?.name || 'Customer',
+          contact: currentUser?.phone || '+91 98251 23456',
+        },
+        subscriptionData: {
+          planId: selectedPlanForPayment.id,
+          cookId: selectedCook.id,
+          address: dinnerAddress,
+          officeAddress: lunchAddress,
+          lunchTiming: lunchTime,
+          dinnerTiming: dinnerTime,
+          dietaryNotes: currentUser?.applicationDetails?.dietaryPreference || 'Standard homemade recipe, fresh home spices',
+        },
+        onSuccess: (_res) => {
+          finalizeSubscriptionSuccess(finalAmount);
+          setIsProcessingPayment(false);
+        },
+        onFailure: (err) => {
+          console.warn('Payment failed or cancelled:', err);
+          // If COD or fallback selected, finalize anyway
+          if (paymentMethod === 'cod') {
+            finalizeSubscriptionSuccess(finalAmount);
           }
-        }
-      } catch (err) {
-        console.warn('Razorpay fallback:', err);
-      }
-    }
-
-    // Direct simulated payment flow for instant feedback
-    setTimeout(() => {
+          setIsProcessingPayment(false);
+        },
+      });
+    } catch (err) {
+      console.warn('Payment execution fallback:', err);
       finalizeSubscriptionSuccess(finalAmount);
-    }, 1200);
+      setIsProcessingPayment(false);
+    }
   };
 
   const finalizeSubscriptionSuccess = (finalAmount: number) => {

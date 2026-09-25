@@ -48,8 +48,9 @@ export function createApp(): Express {
     });
   });
 
-  // Centralized API v1 Routes
+  // Centralized API Routes (supporting /api/v1 and /api)
   app.use("/api/v1", apiV1Router);
+  app.use("/api", apiV1Router);
 
   // 404 Handler
   app.use(notFoundMiddleware);

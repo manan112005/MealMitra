@@ -17,4 +17,6 @@ export const env = {
     .filter(Boolean),
   isDev: (process.env.NODE_ENV || "development") === "development",
   isProd: process.env.NODE_ENV === "production",
+  RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || "rzp_test_MealMitraDemoKey",
+  RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || "MealMitraSecretDevKey_2026",
 };

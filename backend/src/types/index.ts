@@ -1,4 +1,5 @@
 export * from "./auth.types.js";
+export * from "./app.types.js";
 
 export interface ApiResponse<T = unknown> {
   success: boolean;

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Meal } from '../../types';
-import { loadRazorpay } from '../../utils/razorpay';
+import { paymentService } from '../../services/payment.service';
 import {
   X,
   Plus,
@@ -106,96 +106,51 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
     setIsProcessingPayment(true);
 
     try {
-      const isLoaded = await loadRazorpay();
-      if (!isLoaded) {
-        throw new Error('Razorpay SDK failed to load. Are you offline or using an adblocker?');
-      }
-
-      const response = await fetch('http://localhost:3001/api/payments/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'one_time',
-          amount: total,
-        }),
-      });
-
-      const orderData = await response.json();
-
-      if (!response.ok) {
-        throw new Error(orderData.error || 'Failed to initialize payment');
-      }
-
-      const options = {
-        key: orderData.key,
-        amount: orderData.amount,
-        currency: orderData.currency,
+      await paymentService.openCheckout({
+        amount: total,
         name: 'MealMitra Tiffin Reservation',
         description: `Tiffin Slot: ${meal.name} (${mealPeriod})`,
-        order_id: orderData.orderId,
-        handler: async (paymentResponse: any) => {
-          try {
-            const verifyRes = await fetch('http://localhost:3001/api/payments/verify', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                razorpay_order_id: paymentResponse.razorpay_order_id,
-                razorpay_payment_id: paymentResponse.razorpay_payment_id,
-                razorpay_signature: paymentResponse.razorpay_signature,
-              }),
-            });
-
-            const verifyData = await verifyRes.json();
-
-            if (verifyRes.ok && verifyData.status === 'success') {
-              const finalOrderId = placeOrder({
-                meal,
-                quantity,
-                address,
-                phone,
-                timeSlot,
-                specialNotes,
-                bookingDate,
-                mealPeriod,
-                fulfillmentType,
-                bookingType: 'one_time',
-              });
-              setConfirmedOrderId(finalOrderId);
-              setIsSubmitted(true);
-            } else {
-              alert('Payment verification failed. Please try again.');
-            }
-          } catch (err) {
-            console.error('Verification error:', err);
-            alert('Error verifying payment.');
-          } finally {
-            setIsProcessingPayment(false);
-          }
-        },
         prefill: {
-          name: 'Jay Shah',
+          name: 'Customer',
           contact: phone,
         },
-        theme: {
-          color: '#944a00',
+        orderData: {
+          mealId: meal.id,
+          quantity,
+          address,
+          phone,
+          timeSlot,
+          specialNotes,
+          bookingDate,
+          mealPeriod,
+          fulfillmentType,
+          bookingType: 'one_time',
         },
-        modal: {
-          ondismiss: () => {
-            setIsProcessingPayment(false);
-          },
+        onSuccess: (_response) => {
+          const finalOrderId = placeOrder({
+            meal,
+            quantity,
+            address,
+            phone,
+            timeSlot,
+            specialNotes,
+            bookingDate,
+            mealPeriod,
+            fulfillmentType,
+            bookingType: 'one_time',
+          });
+          setConfirmedOrderId(finalOrderId);
+          setIsSubmitted(true);
+          setIsProcessingPayment(false);
         },
-      };
-
-      const rzp = new (window as any).Razorpay(options);
-      rzp.on('payment.failed', function (resp: any) {
-        console.error(resp.error);
-        alert(`Payment failed: ${resp.error.description}`);
-        setIsProcessingPayment(false);
+        onFailure: (err) => {
+          console.warn('Payment failed or cancelled:', err);
+          setIsProcessingPayment(false);
+        },
       });
-      rzp.open();
     } catch (error: any) {
       console.error('Payment Error:', error);
-      alert(`Could not initiate payment: ${error.message || 'Ensure backend is running.'}`);
+      alert(`Could not initiate payment: ${error.message || 'Please try again.'}`);
       setIsProcessingPayment(false);
     }
   };
