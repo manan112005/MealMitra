@@ -47,8 +47,10 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
   const realCustomerAddress =
     currentUser?.applicationDetails?.address || 'Flat 402, Shivalik Residency, Navrangpura, Ahmedabad';
 
-  // Step state: 'details' -> 'payment' -> 'confirmed'
-  const [currentStep, setCurrentStep] = useState<'details' | 'payment' | 'confirmed'>('details');
+  // Step state: 'details' -> 'payment' -> 'razorpay_gateway' -> 'failed' | 'confirmed'
+  const [currentStep, setCurrentStep] = useState<'details' | 'payment' | 'razorpay_gateway' | 'failed' | 'confirmed'>('details');
+  const [failureReason, setFailureReason] = useState('Payment declined by user or bank authorization timeout.');
+  const [paymentOtp, setPaymentOtp] = useState('123456');
 
   // Reservation state
   const [bookingDate, setBookingDate] = useState<'Today' | 'Tomorrow' | string>('Today');
@@ -157,29 +159,50 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
     return 'Cash / Pay on Tiffin Delivery';
   };
 
-  const handleExecutePayment = async () => {
+  // Trigger gateway simulation window
+  const handleInitiateGateway = () => {
+    if (paymentMethod === 'cod') {
+      // Immediate COD confirmation
+      const finalOrderId = placeOrder({
+        meal,
+        quantity,
+        address,
+        phone,
+        timeSlot,
+        specialNotes,
+        bookingDate,
+        mealPeriod,
+        fulfillmentType,
+        bookingType: 'one_time',
+      });
+      setConfirmedOrderId(finalOrderId);
+      setConfirmedPaymentId(`cod_${Date.now()}`);
+      setCurrentStep('confirmed');
+      return;
+    }
+
+    setCurrentStep('razorpay_gateway');
+  };
+
+  // Gateway Simulation: SUCCESS ACTION
+  const handleSimulateGatewaySuccess = async () => {
     setIsProcessingPayment(true);
-    setPaymentStageText('Connecting to Razorpay Gateway...');
+    setPaymentStageText('Authorizing with Razorpay Gateway...');
 
     const chosenMethodName = getPaymentMethodDisplay();
 
     setTimeout(() => {
-      setPaymentStageText(`Authorizing ₹${total} via ${chosenMethodName}...`);
-    }, 450);
-
-    setTimeout(() => {
-      setPaymentStageText('Payment Authorized & Verifying Signature...');
-    }, 900);
+      setPaymentStageText(`Verifying signature for ₹${total} via ${chosenMethodName}...`);
+    }, 600);
 
     try {
-      await paymentService.openCheckout({
-        amount: total,
-        name: 'MealMitra Tiffin Reservation',
-        description: `Tiffin Slot: ${meal.name} (${mealPeriod}) - Paid via ${chosenMethodName}`,
-        prefill: {
-          name: realCustomerName,
-          contact: phone || realCustomerPhone,
-        },
+      const simulatedPaymentId = `pay_rzp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const simulatedSignature = `sig_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+
+      await paymentService.verifyPayment({
+        razorpay_order_id: `order_rzp_${Date.now()}`,
+        razorpay_payment_id: simulatedPaymentId,
+        razorpay_signature: simulatedSignature,
         orderData: {
           mealId: meal.id,
           quantity,
@@ -192,50 +215,30 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
           fulfillmentType,
           bookingType: 'one_time',
         },
-        onSuccess: (response) => {
-          const finalOrderId = placeOrder({
-            meal,
-            quantity,
-            address,
-            phone,
-            timeSlot,
-            specialNotes,
-            bookingDate,
-            mealPeriod,
-            fulfillmentType,
-            bookingType: 'one_time',
-          });
-          setConfirmedOrderId(finalOrderId);
-          setConfirmedPaymentId(response.paymentId || `pay_rzp_${Date.now()}`);
-          setTimeout(() => {
-            setCurrentStep('confirmed');
-            setIsProcessingPayment(false);
-          }, 300);
-        },
-        onFailure: (err) => {
-          console.warn('Payment fallback notice:', err);
-          const finalOrderId = placeOrder({
-            meal,
-            quantity,
-            address,
-            phone,
-            timeSlot,
-            specialNotes,
-            bookingDate,
-            mealPeriod,
-            fulfillmentType,
-            bookingType: 'one_time',
-          });
-          setConfirmedOrderId(finalOrderId);
-          setConfirmedPaymentId(paymentMethod === 'cod' ? `cod_${Date.now()}` : `pay_rzp_${Date.now()}`);
-          setTimeout(() => {
-            setCurrentStep('confirmed');
-            setIsProcessingPayment(false);
-          }, 300);
-        },
       });
-    } catch (error: any) {
-      console.warn('Payment catch fallback:', error);
+
+      const finalOrderId = placeOrder({
+        meal,
+        quantity,
+        address,
+        phone,
+        timeSlot,
+        specialNotes,
+        bookingDate,
+        mealPeriod,
+        fulfillmentType,
+        bookingType: 'one_time',
+      });
+
+      setConfirmedOrderId(finalOrderId);
+      setConfirmedPaymentId(simulatedPaymentId);
+
+      setTimeout(() => {
+        setIsProcessingPayment(false);
+        setCurrentStep('confirmed');
+      }, 500);
+    } catch (err) {
+      console.warn('Backend payment verification notice, completing locally:', err);
       const finalOrderId = placeOrder({
         meal,
         quantity,
@@ -250,11 +253,24 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
       });
       setConfirmedOrderId(finalOrderId);
       setConfirmedPaymentId(`pay_rzp_${Date.now()}`);
-      setTimeout(() => {
-        setCurrentStep('confirmed');
-        setIsProcessingPayment(false);
-      }, 300);
+      setIsProcessingPayment(false);
+      setCurrentStep('confirmed');
     }
+  };
+
+  // Gateway Simulation: FAILURE ACTION
+  const handleSimulateGatewayFailure = (reason?: string) => {
+    setIsProcessingPayment(true);
+    setPaymentStageText('Processing response...');
+
+    setTimeout(() => {
+      setIsProcessingPayment(false);
+      setFailureReason(
+        reason ||
+          `Payment Authorization Failed for ${getPaymentMethodDisplay()}. Bank declined transaction or authentication was aborted.`
+      );
+      setCurrentStep('failed');
+    }, 700);
   };
 
   const handleGoToOrders = () => {
@@ -693,14 +709,14 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
 
               <button
                 type="button"
-                onClick={handleExecutePayment}
+                onClick={handleInitiateGateway}
                 disabled={isProcessingPayment}
                 className="flex-1 py-3.5 bg-[#944a00] hover:bg-[#713700] disabled:bg-gray-400 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
               >
                 {isProcessingPayment ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Verifying with Razorpay...</span>
+                    <span>Processing with Razorpay...</span>
                   </>
                 ) : (
                   <>
@@ -712,6 +728,198 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
                     </span>
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        ) : currentStep === 'razorpay_gateway' ? (
+          /* STEP: OFFICIAL RAZORPAY GATEWAY SIMULATOR */
+          <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 bg-[#fbfbfb]">
+            {/* Razorpay Gateway Top Header */}
+            <div className="p-4 bg-[#0c2340] text-white rounded-2xl flex items-center justify-between shadow-md relative overflow-hidden">
+              <div className="absolute top-0 right-0 bg-[#3395ff] text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-bl-lg tracking-wider">
+                Razorpay Test Mode
+              </div>
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-base tracking-tight">Razorpay</span>
+                  <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded text-blue-200 font-semibold">
+                    Gateway
+                  </span>
+                </div>
+                <div className="text-xs text-blue-100 font-medium">Merchant: MealMitra Home Tiffins</div>
+              </div>
+              <div className="text-right pr-2">
+                <div className="text-[10px] text-blue-200 uppercase font-bold">Total Amount</div>
+                <div className="text-lg font-black text-[#68d391]">₹{total}</div>
+              </div>
+            </div>
+
+            {/* Gateway Authorization Mockup Body */}
+            <div className="p-4 bg-white rounded-2xl border border-[#dcc1b1]/70 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-[#eeeeed]">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">
+                    {paymentMethod === 'upi' ? '📱' : paymentMethod === 'card' ? '💳' : '🏦'}
+                  </span>
+                  <div>
+                    <div className="text-xs font-bold text-[#1a1c1c]">{getPaymentMethodDisplay()}</div>
+                    <div className="text-[10px] text-[#564337]">
+                      {paymentMethod === 'upi'
+                        ? 'Simulating UPI Push Request on Mobile'
+                        : paymentMethod === 'card'
+                        ? 'Simulating 3D-Secure Bank Card Authentication'
+                        : 'Simulating NetBanking Portal Login'}
+                    </div>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full animate-pulse">
+                  Awaiting Authorization
+                </span>
+              </div>
+
+              {paymentMethod === 'upi' && (
+                <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-100 space-y-2 text-xs">
+                  <div className="font-bold text-blue-900 flex items-center gap-1.5">
+                    <Smartphone className="w-4 h-4 text-blue-700" />
+                    <span>UPI Collect Request Triggered</span>
+                  </div>
+                  <p className="text-[11px] text-blue-800 leading-relaxed">
+                    Open your <strong>{selectedUpiApp.toUpperCase()}</strong> app on your device to approve the payment request of <strong>₹{total}</strong> from <code>mealmitra@razorpay</code>.
+                  </p>
+                </div>
+              )}
+
+              {paymentMethod === 'card' && (
+                <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-100 space-y-2 text-xs">
+                  <div className="font-bold text-amber-900 flex items-center gap-1.5">
+                    <Lock className="w-4 h-4 text-amber-700" />
+                    <span>Enter 3D Secure OTP</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={paymentOtp}
+                      onChange={(e) => setPaymentOtp(e.target.value)}
+                      placeholder="Enter 6-digit OTP"
+                      className="w-36 bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-center tracking-widest focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                    <span className="text-[10px] text-amber-800">(Test OTP: 123456)</span>
+                  </div>
+                </div>
+              )}
+
+              {paymentMethod === 'netbanking' && (
+                <div className="p-3 bg-purple-50/70 rounded-xl border border-purple-100 space-y-1 text-xs">
+                  <div className="font-bold text-purple-900">Redirected to {selectedBank} Net Banking</div>
+                  <p className="text-[11px] text-purple-800">
+                    Your session is encrypted with 256-bit bank grade security. Approve transaction to complete booking.
+                  </p>
+                </div>
+              )}
+
+              {/* Real Success & Failure Simulator Controls */}
+              <div className="pt-2 space-y-2">
+                <div className="text-[11px] font-bold text-[#564337] uppercase tracking-wider flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-[#944a00]" />
+                  <span>Razorpay Testing Actions:</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSimulateGatewaySuccess}
+                    disabled={isProcessingPayment}
+                    className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Simulate Payment Success</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSimulateGatewayFailure()}
+                    disabled={isProcessingPayment}
+                    className="py-3 px-4 bg-red-50 hover:bg-red-100 border border-red-300 text-red-700 font-bold text-xs rounded-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <AlertCircle className="w-4 h-4 text-red-600" />
+                    <span>Simulate Payment Failure</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Cancel & Return */}
+            <div className="flex justify-between items-center pt-2">
+              <button
+                type="button"
+                onClick={() => setCurrentStep('payment')}
+                className="text-xs font-bold text-[#564337] hover:text-[#1a1c1c] underline cursor-pointer"
+              >
+                ← Back to payment methods
+              </button>
+              <span className="text-[10px] text-[#564337] flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-[#51634c]" />
+                <span>Protected by Razorpay Checkout</span>
+              </span>
+            </div>
+          </div>
+        ) : currentStep === 'failed' ? (
+          /* STEP: PAYMENT FAILED SCREEN */
+          <div className="p-6 space-y-5 text-center overflow-y-auto flex-1 bg-[#faf9f8]">
+            <div className="w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto shadow-sm">
+              <AlertCircle className="w-9 h-9" />
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-red-700 bg-red-100 px-3 py-1 rounded-full">
+                Payment Unsuccessful
+              </span>
+              <h4 className="text-xl font-extrabold text-[#1a1c1c] pt-1">
+                Payment Failed
+              </h4>
+              <p className="text-xs text-red-800 bg-red-50 p-3 rounded-xl border border-red-200 leading-relaxed text-left">
+                {failureReason}
+              </p>
+              <p className="text-[11px] text-[#564337] pt-1">
+                No amount was deducted from your account. Your tiffin cart details have been preserved.
+              </p>
+            </div>
+
+            <div className="p-3.5 bg-white rounded-xl border border-[#dcc1b1]/60 text-left space-y-1.5 text-xs">
+              <div className="flex justify-between text-[#564337]">
+                <span>Attempted Amount:</span>
+                <span className="font-bold text-[#1a1c1c]">₹{total}</span>
+              </div>
+              <div className="flex justify-between text-[#564337]">
+                <span>Payment Method:</span>
+                <span>{getPaymentMethodDisplay()}</span>
+              </div>
+              <div className="flex justify-between text-[#564337]">
+                <span>Transaction Status:</span>
+                <span className="text-red-600 font-bold">FAILED / DECLINED</span>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setCurrentStep('payment')}
+                className="w-full py-3.5 bg-[#944a00] hover:bg-[#713700] text-white font-bold text-xs rounded-xl shadow-md transition-colors cursor-pointer flex items-center justify-center gap-2"
+              >
+                <span>Retry Payment / Choose Another Method</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentMethod('cod');
+                  handleInitiateGateway();
+                }}
+                className="w-full py-3 bg-white border border-[#dcc1b1] hover:bg-[#faf9f8] text-[#564337] font-bold text-xs rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Banknote className="w-4 h-4" />
+                <span>Switch to Pay on Tiffin Delivery</span>
               </button>
             </div>
           </div>

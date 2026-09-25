@@ -102,6 +102,8 @@ export const CustomerSubscriptions: React.FC = () => {
   
   // Payment Modal State
   const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<SubscriptionPlan | null>(null);
+  const [subPaymentStep, setSubPaymentStep] = useState<'select_method' | 'razorpay_gateway' | 'failed'>('select_method');
+  const [subFailureReason, setSubFailureReason] = useState('Transaction declined by issuing bank.');
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card' | 'netbanking' | 'cod' | 'razorpay'>('upi');
   const [selectedUpiApp, setSelectedUpiApp] = useState<'gpay' | 'phonepe' | 'paytm' | 'cred' | 'custom'>('gpay');
   const [customUpiId, setCustomUpiId] = useState('');
@@ -140,11 +142,25 @@ export const CustomerSubscriptions: React.FC = () => {
 
   const handleOpenPayment = (plan: SubscriptionPlan) => {
     setSelectedPlanForPayment(plan);
+    setSubPaymentStep('select_method');
     setPaymentSuccessData(null);
     setIsProcessingPayment(false);
   };
 
-  const handleCompletePayment = async () => {
+  const handleInitiateSubGateway = () => {
+    if (!selectedPlanForPayment) return;
+    const discount = useRewardPoints ? 125 : 0;
+    const finalAmount = Math.max(0, selectedPlanForPayment.price - discount);
+
+    if (paymentMethod === 'cod') {
+      finalizeSubscriptionSuccess(finalAmount);
+      return;
+    }
+
+    setSubPaymentStep('razorpay_gateway');
+  };
+
+  const handleSimulateSubSuccess = async () => {
     if (!selectedPlanForPayment) return;
     setIsProcessingPayment(true);
 
@@ -152,14 +168,13 @@ export const CustomerSubscriptions: React.FC = () => {
     const finalAmount = Math.max(0, selectedPlanForPayment.price - discount);
 
     try {
-      await paymentService.openCheckout({
-        amount: finalAmount,
-        name: 'MealMitra Subscriptions',
-        description: `Subscription: ${selectedPlanForPayment.name} (${selectedCook.name})`,
-        prefill: {
-          name: currentUser?.name || 'Customer',
-          contact: currentUser?.phone || '+91 98251 23456',
-        },
+      const simulatedPaymentId = `pay_rzp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const simulatedSignature = `sig_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+
+      await paymentService.verifyPayment({
+        razorpay_order_id: `order_rzp_${Date.now()}`,
+        razorpay_payment_id: simulatedPaymentId,
+        razorpay_signature: simulatedSignature,
         subscriptionData: {
           planId: selectedPlanForPayment.id,
           cookId: selectedCook.id,
@@ -169,24 +184,26 @@ export const CustomerSubscriptions: React.FC = () => {
           dinnerTiming: dinnerTime,
           dietaryNotes: currentUser?.applicationDetails?.dietaryPreference || 'Standard homemade recipe, fresh home spices',
         },
-        onSuccess: (_res) => {
-          finalizeSubscriptionSuccess(finalAmount);
-          setIsProcessingPayment(false);
-        },
-        onFailure: (err) => {
-          console.warn('Payment failed or cancelled:', err);
-          // If COD or fallback selected, finalize anyway
-          if (paymentMethod === 'cod') {
-            finalizeSubscriptionSuccess(finalAmount);
-          }
-          setIsProcessingPayment(false);
-        },
       });
-    } catch (err) {
-      console.warn('Payment execution fallback:', err);
+
       finalizeSubscriptionSuccess(finalAmount);
+    } catch {
+      finalizeSubscriptionSuccess(finalAmount);
+    } finally {
       setIsProcessingPayment(false);
     }
+  };
+
+  const handleSimulateSubFailure = (reason?: string) => {
+    setIsProcessingPayment(true);
+    setTimeout(() => {
+      setIsProcessingPayment(false);
+      setSubFailureReason(
+        reason ||
+          `Payment authorization failed for ${selectedPlanForPayment?.name}. Bank declined recurring transaction or user cancelled.`
+      );
+      setSubPaymentStep('failed');
+    }, 600);
   };
 
   const finalizeSubscriptionSuccess = (finalAmount: number) => {
@@ -748,7 +765,7 @@ export const CustomerSubscriptions: React.FC = () => {
                   </button>
                 </div>
               </div>
-            ) : (
+            ) : subPaymentStep === 'select_method' ? (
               /* Modal Body: Payment Selection Form */
               <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
                 {/* Delivery Snapshot */}
@@ -1075,14 +1092,14 @@ export const CustomerSubscriptions: React.FC = () => {
                   </button>
 
                   <button
-                    onClick={handleCompletePayment}
+                    onClick={handleInitiateSubGateway}
                     disabled={isProcessingPayment}
                     className="flex-1 py-3.5 bg-[#944a00] hover:bg-[#713700] disabled:bg-gray-400 text-white rounded-xl text-xs font-bold shadow-md transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
                   >
                     {isProcessingPayment ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Verifying Payment with Bank...</span>
+                        <span>Processing with Razorpay...</span>
                       </>
                     ) : (
                       <>
@@ -1097,6 +1114,131 @@ export const CustomerSubscriptions: React.FC = () => {
                         </span>
                       </>
                     )}
+                  </button>
+                </div>
+              </div>
+            ) : subPaymentStep === 'razorpay_gateway' ? (
+              /* SUBSCRIPTION RAZORPAY GATEWAY SIMULATOR */
+              <div className="p-6 space-y-4 bg-[#fbfbfb]">
+                <div className="p-4 bg-[#0c2340] text-white rounded-2xl flex items-center justify-between shadow-md relative overflow-hidden">
+                  <div className="absolute top-0 right-0 bg-[#3395ff] text-white text-[9px] font-black uppercase px-2.5 py-0.5 rounded-bl-lg tracking-wider">
+                    Razorpay Test Mode
+                  </div>
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-base tracking-tight">Razorpay</span>
+                      <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded text-blue-200 font-semibold">
+                        Subscription Gateway
+                      </span>
+                    </div>
+                    <div className="text-xs text-blue-100 font-medium">Merchant: MealMitra Home Tiffins</div>
+                  </div>
+                  <div className="text-right pr-2">
+                    <div className="text-[10px] text-blue-200 uppercase font-bold">Plan Amount</div>
+                    <div className="text-lg font-black text-[#68d391]">
+                      ₹{Math.max(0, selectedPlanForPayment.price - (useRewardPoints ? 125 : 0)).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-white rounded-2xl border border-[#dcc1b1]/70 space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between pb-2 border-b border-[#eeeeed]">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">{paymentMethod === 'upi' ? '📱' : paymentMethod === 'card' ? '💳' : '🏦'}</span>
+                      <div>
+                        <div className="text-xs font-bold text-[#1a1c1c]">{selectedPlanForPayment.name} Subscription</div>
+                        <div className="text-[10px] text-[#564337]">
+                          Authorizing {paymentMethod.toUpperCase()} with Chef {selectedCook.name}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full animate-pulse">
+                      Awaiting Authorization
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-[#564337] leading-relaxed">
+                    Test the complete payment authorization workflow using the testing controls below:
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleSimulateSubSuccess}
+                      disabled={isProcessingPayment}
+                      className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Simulate Payment Success</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSimulateSubFailure()}
+                      disabled={isProcessingPayment}
+                      className="py-3 px-4 bg-red-50 hover:bg-red-100 border border-red-300 text-red-700 font-bold text-xs rounded-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <AlertCircle className="w-4 h-4 text-red-600" />
+                      <span>Simulate Payment Failure</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setSubPaymentStep('select_method')}
+                    className="text-xs font-bold text-[#564337] hover:text-[#1a1c1c] underline cursor-pointer"
+                  >
+                    ← Back to payment methods
+                  </button>
+                  <span className="text-[10px] text-[#564337] flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#51634c]" />
+                    <span>Protected by Razorpay Checkout</span>
+                  </span>
+                </div>
+              </div>
+            ) : (
+              /* SUBSCRIPTION PAYMENT FAILED SCREEN */
+              <div className="p-6 space-y-5 text-center bg-[#faf9f8]">
+                <div className="w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto shadow-sm">
+                  <AlertCircle className="w-9 h-9" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <span className="text-xs font-bold uppercase tracking-wider text-red-700 bg-red-100 px-3 py-1 rounded-full">
+                    Subscription Payment Unsuccessful
+                  </span>
+                  <h4 className="text-xl font-extrabold text-[#1a1c1c] pt-1">Payment Failed</h4>
+                  <p className="text-xs text-red-800 bg-red-50 p-3 rounded-xl border border-red-200 leading-relaxed text-left">
+                    {subFailureReason}
+                  </p>
+                  <p className="text-[11px] text-[#564337]">
+                    No funds were deducted. Your customization settings remain saved.
+                  </p>
+                </div>
+
+                <div className="space-y-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setSubPaymentStep('select_method')}
+                    className="w-full py-3.5 bg-[#944a00] hover:bg-[#713700] text-white font-bold text-xs rounded-xl shadow-md transition-colors cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <span>Retry Payment / Change Method</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentMethod('cod');
+                      const discount = useRewardPoints ? 125 : 0;
+                      finalizeSubscriptionSuccess(Math.max(0, selectedPlanForPayment.price - discount));
+                    }}
+                    className="w-full py-3 bg-white border border-[#dcc1b1] hover:bg-[#faf9f8] text-[#564337] font-bold text-xs rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Banknote className="w-4 h-4" />
+                    <span>Switch to Pay on 1st Tiffin Delivery</span>
                   </button>
                 </div>
               </div>
