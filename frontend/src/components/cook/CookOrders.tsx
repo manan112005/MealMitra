@@ -173,31 +173,41 @@ export const CookOrders: React.FC = () => {
                   </div>
 
                   {/* Cook Actions */}
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     {order.status === 'Confirmed' && (
                       <button
                         onClick={() => updateOrderStatus(order.id, 'Preparing')}
-                        className="w-full py-2 bg-[#944a00] hover:bg-[#713700] text-white text-xs font-bold rounded-xl transition-colors shadow-2xs"
+                        className="w-full py-2 bg-[#944a00] hover:bg-[#713700] text-white text-xs font-bold rounded-xl transition-colors shadow-2xs cursor-pointer flex items-center justify-center gap-1.5"
                       >
-                        Accept & Start Prepping
+                        <ChefHat className="w-3.5 h-3.5" />
+                        <span>Accept & Start Prepping</span>
                       </button>
                     )}
                     {order.status === 'Preparing' && (
                       <button
                         onClick={() => updateOrderStatus(order.id, 'Picked Up')}
-                        className="w-full py-2 bg-[#51634c] hover:bg-[#3d4b39] text-white text-xs font-bold rounded-xl transition-colors shadow-2xs"
+                        className="w-full py-2 bg-[#51634c] hover:bg-[#3d4b39] text-white text-xs font-bold rounded-xl transition-colors shadow-2xs cursor-pointer flex items-center justify-center gap-1.5"
                       >
-                        Hand to Partner (Ready)
+                        <Bike className="w-3.5 h-3.5" />
+                        <span>Handover to Rider (Ready)</span>
                       </button>
                     )}
                     {order.status === 'Picked Up' && (
-                      <div className="text-center text-[11px] font-bold text-[#4e6074] py-1 bg-blue-50 rounded-lg">
-                        Dispatched with Rider
+                      <div className="space-y-1">
+                        <div className="text-center text-[11px] font-bold text-[#4e6074] py-1 bg-blue-50 rounded-lg">
+                          Dispatched with Rider
+                        </div>
+                        <button
+                          onClick={() => updateOrderStatus(order.id, 'Delivered')}
+                          className="w-full py-1.5 bg-[#51634c] hover:bg-[#3d4b39] text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+                        >
+                          Mark as Delivered ✓
+                        </button>
                       </div>
                     )}
                     {order.status === 'Delivered' && (
                       <div className="text-center text-[11px] font-bold text-[#51634c] py-1 bg-[#d1e6c9]/40 rounded-lg">
-                        ✓ Completed & Settled
+                        ✓ Completed & Delivered
                       </div>
                     )}
                   </div>

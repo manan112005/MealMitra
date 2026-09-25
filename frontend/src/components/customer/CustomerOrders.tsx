@@ -43,17 +43,13 @@ export const CustomerOrders: React.FC = () => {
   ];
 
   const getStepIndex = (status: OrderStatus) => {
-    if (status === 'Picked Up' || status === 'Out for Delivery') return 3;
+    if (status === 'Slot Reserved' || status === 'Placed') return 0;
+    if (status === 'Confirmed') return 1;
+    if (status === 'Preparing') return 2;
+    if (status === 'Picked Up' || status === 'Out for Delivery' || status === 'Meal Ready') return 3;
+    if (status === 'Delivered') return 4;
     const idx = statusSteps.indexOf(status);
     return idx >= 0 ? idx : 1;
-  };
-
-  const handleSimulateNextStep = (order: Order) => {
-    const currentIndex = getStepIndex(order.status);
-    if (currentIndex < statusSteps.length - 1) {
-      const nextStatus = statusSteps[currentIndex + 1];
-      updateOrderStatus(order.id, nextStatus);
-    }
   };
 
   const handleReorder = (order: Order) => {
@@ -188,14 +184,28 @@ export const CustomerOrders: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Prototype Stepper trigger */}
-                      <button
-                        onClick={() => handleSimulateNextStep(order)}
-                        title="Advance status for demonstration"
-                        className="px-3 py-1.5 bg-[#faf9f8] hover:bg-[#ffdcc5]/40 text-[#944a00] border border-[#dcc1b1] text-xs font-bold rounded-lg transition-colors flex items-center gap-1"
-                      >
-                        <span>Demo Advance Status ➔</span>
-                      </button>
+                      {/* Real-time Kitchen Status Pill */}
+                      {order.status === 'Confirmed' || order.status === 'Slot Reserved' ? (
+                        <div className="px-3 py-1.5 bg-amber-50 text-amber-900 border border-amber-200/80 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-2xs">
+                          <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                          <span>Order Placed • Waiting for Chef</span>
+                        </div>
+                      ) : order.status === 'Preparing' ? (
+                        <div className="px-3 py-1.5 bg-[#ffdcc5] text-[#944a00] border border-[#dcc1b1] text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-2xs">
+                          <span className="w-2 h-2 rounded-full bg-[#944a00] animate-pulse"></span>
+                          <span>Chef is Cooking</span>
+                        </div>
+                      ) : order.status === 'Picked Up' || order.status === 'Out for Delivery' || order.status === 'Meal Ready' ? (
+                        <div className="px-3 py-1.5 bg-sky-50 text-sky-900 border border-sky-200 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-2xs">
+                          <Bike className="w-3.5 h-3.5 text-sky-600 animate-bounce" />
+                          <span>Out for Delivery</span>
+                        </div>
+                      ) : (
+                        <div className="px-3 py-1.5 bg-[#d1e6c9] text-[#51634c] border border-emerald-300 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-2xs">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-[#51634c]" />
+                          <span>Delivered</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 

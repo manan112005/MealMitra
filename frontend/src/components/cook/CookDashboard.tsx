@@ -307,22 +307,30 @@ export const CookDashboard: React.FC = () => {
                 {order.status === 'Confirmed' && (
                   <button
                     onClick={() => updateOrderStatus(order.id, 'Preparing')}
-                    className="flex-1 sm:flex-initial px-4 py-2 bg-[#944a00] hover:bg-[#713700] text-white text-xs font-bold rounded-xl shadow-2xs transition-colors"
+                    className="flex-1 sm:flex-initial px-4 py-2 bg-[#944a00] hover:bg-[#713700] text-white text-xs font-bold rounded-xl shadow-2xs transition-colors cursor-pointer"
                   >
-                    Start Cooking
+                    Accept & Start Cooking
                   </button>
                 )}
                 {order.status === 'Preparing' && (
                   <button
                     onClick={() => updateOrderStatus(order.id, 'Picked Up')}
-                    className="flex-1 sm:flex-initial px-4 py-2 bg-[#51634c] hover:bg-[#3d4b39] text-white text-xs font-bold rounded-xl shadow-2xs transition-colors"
+                    className="flex-1 sm:flex-initial px-4 py-2 bg-[#51634c] hover:bg-[#3d4b39] text-white text-xs font-bold rounded-xl shadow-2xs transition-colors cursor-pointer"
                   >
-                    Mark Ready for Pickup
+                    Handover to Rider
                   </button>
                 )}
                 {order.status === 'Picked Up' && (
-                  <span className="text-xs font-bold text-[#4e6074]">
-                    Handed to Delivery Partner
+                  <button
+                    onClick={() => updateOrderStatus(order.id, 'Delivered')}
+                    className="flex-1 sm:flex-initial px-4 py-2 bg-[#51634c] hover:bg-[#3d4b39] text-white text-xs font-bold rounded-xl shadow-2xs transition-colors cursor-pointer"
+                  >
+                    Mark Delivered ✓
+                  </button>
+                )}
+                {order.status === 'Delivered' && (
+                  <span className="text-xs font-bold text-[#51634c] bg-[#d1e6c9]/60 px-3 py-1 rounded-lg">
+                    ✓ Delivered
                   </span>
                 )}
               </div>
