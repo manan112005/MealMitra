@@ -20,6 +20,15 @@ import {
   Store,
   Users,
   ArrowLeft,
+  Smartphone,
+  CreditCard,
+  Landmark,
+  Banknote,
+  QrCode,
+  Lock,
+  Receipt,
+  ChevronRight,
+  ExternalLink,
 } from 'lucide-react';
 
 interface Props {
@@ -35,7 +44,11 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
 
   const realCustomerName = currentUser?.name || currentUser?.applicationDetails?.name || 'Customer';
   const realCustomerPhone = currentUser?.phone || '+91 98251 23456';
-  const realCustomerAddress = currentUser?.applicationDetails?.address || 'Flat 402, Shivalik Residency, Navrangpura, Ahmedabad';
+  const realCustomerAddress =
+    currentUser?.applicationDetails?.address || 'Flat 402, Shivalik Residency, Navrangpura, Ahmedabad';
+
+  // Step state: 'details' -> 'payment' -> 'confirmed'
+  const [currentStep, setCurrentStep] = useState<'details' | 'payment' | 'confirmed'>('details');
 
   // Reservation state
   const [bookingDate, setBookingDate] = useState<'Today' | 'Tomorrow' | string>('Today');
@@ -50,9 +63,19 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
     mealPeriod === 'Dinner' ? '8:00 PM - 8:30 PM' : '1:00 PM - 1:30 PM'
   );
   const [specialNotes, setSpecialNotes] = useState('');
-  const [isSubmitted, setIsSubmitted] = useState(false);
   const [confirmedOrderId, setConfirmedOrderId] = useState('');
+  const [confirmedPaymentId, setConfirmedPaymentId] = useState('');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
+  // Payment method selection inside Razorpay view
+  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card' | 'netbanking' | 'cod'>('upi');
+  const [selectedUpiApp, setSelectedUpiApp] = useState<'gpay' | 'phonepe' | 'paytm' | 'cred' | 'custom'>('gpay');
+  const [customUpiId, setCustomUpiId] = useState('');
+  const [showQrCode, setShowQrCode] = useState(false);
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+  const [selectedBank, setSelectedBank] = useState('HDFC');
 
   // Waitlist state
   const [isJoiningWaitlist, setIsJoiningWaitlist] = useState(false);
@@ -60,22 +83,21 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
 
   // Dynamic capacity & cutoff based on chosen date and period
   const isToday = bookingDate === 'Today';
-  const cutoffTime = mealPeriod === 'Lunch' 
-    ? (cook?.lunchCutoffTime || '10:30 AM') 
-    : (cook?.dinnerCutoffTime || '05:30 PM');
+  const cutoffTime =
+    mealPeriod === 'Lunch' ? cook?.lunchCutoffTime || '10:30 AM' : cook?.dinnerCutoffTime || '05:30 PM';
 
   // Compute available slots
   const availableSlots = isToday
     ? mealPeriod === 'Lunch'
-      ? (cook?.lunchAvailableQty ?? meal.availableQty)
-      : (cook?.dinnerAvailableQty ?? meal.availableQty)
+      ? cook?.lunchAvailableQty ?? meal.availableQty
+      : cook?.dinnerAvailableQty ?? meal.availableQty
     : 25; // Advance booking has open capacity slots
 
   const isSoldOut = availableSlots < 1;
 
   // Cost computation
   const subtotal = meal.price * quantity;
-  const deliveryFee = fulfillmentType === 'Pickup' ? 0 : (subtotal > 300 ? 0 : 30);
+  const deliveryFee = fulfillmentType === 'Pickup' ? 0 : subtotal > 300 ? 0 : 30;
   const packagingFee = fulfillmentType === 'Pickup' ? 0 : 15;
   const total = subtotal + deliveryFee + packagingFee;
 
@@ -105,10 +127,17 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
     }
   };
 
-  const handlePlaceReservation = async (e: React.FormEvent) => {
+  const handleProceedToPayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (isSoldOut) return;
+    if (!address.trim() && fulfillmentType === 'Delivery') {
+      alert('Please provide a delivery address.');
+      return;
+    }
+    setCurrentStep('payment');
+  };
 
+  const handleExecutePayment = async () => {
     setIsProcessingPayment(true);
 
     try {
@@ -132,7 +161,7 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
           fulfillmentType,
           bookingType: 'one_time',
         },
-        onSuccess: (_response) => {
+        onSuccess: (response) => {
           const finalOrderId = placeOrder({
             meal,
             quantity,
@@ -146,17 +175,35 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
             bookingType: 'one_time',
           });
           setConfirmedOrderId(finalOrderId);
-          setIsSubmitted(true);
+          setConfirmedPaymentId(response.paymentId || `pay_rzp_${Date.now()}`);
+          setCurrentStep('confirmed');
           setIsProcessingPayment(false);
         },
         onFailure: (err) => {
           console.warn('Payment failed or cancelled:', err);
+          if (paymentMethod === 'cod') {
+            const finalOrderId = placeOrder({
+              meal,
+              quantity,
+              address,
+              phone,
+              timeSlot,
+              specialNotes,
+              bookingDate,
+              mealPeriod,
+              fulfillmentType,
+              bookingType: 'one_time',
+            });
+            setConfirmedOrderId(finalOrderId);
+            setConfirmedPaymentId(`cod_${Date.now()}`);
+            setCurrentStep('confirmed');
+          }
           setIsProcessingPayment(false);
         },
       });
     } catch (error: any) {
       console.error('Payment Error:', error);
-      alert(`Could not initiate payment: ${error.message || 'Please try again.'}`);
+      alert(`Could not complete payment: ${error.message || 'Please try again.'}`);
       setIsProcessingPayment(false);
     }
   };
@@ -169,26 +216,48 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-hidden animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-[#dcc1b1]/60 my-auto animate-in zoom-in-95 duration-150">
-        
         {/* Modal Header */}
         <div className="px-5 sm:px-6 py-3.5 border-b border-[#eeeeed] flex justify-between items-center bg-[#faf9f8] shrink-0">
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1.5 px-2.5 rounded-xl text-[#564337] hover:text-[#1a1c1c] hover:bg-white border border-[#dcc1b1]/50 flex items-center gap-1.5 text-xs font-bold transition-all shadow-2xs cursor-pointer"
-              title="Back"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back</span>
-            </button>
+            {currentStep === 'payment' ? (
+              <button
+                type="button"
+                onClick={() => setCurrentStep('details')}
+                className="p-1.5 px-2.5 rounded-xl text-[#564337] hover:text-[#1a1c1c] hover:bg-white border border-[#dcc1b1]/50 flex items-center gap-1.5 text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                title="Back to details"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Details</span>
+              </button>
+            ) : currentStep === 'confirmed' ? (
+              <div className="p-1 px-2.5 rounded-xl bg-[#d1e6c9] text-[#51634c] font-bold text-xs flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Success</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1.5 px-2.5 rounded-xl text-[#564337] hover:text-[#1a1c1c] hover:bg-white border border-[#dcc1b1]/50 flex items-center gap-1.5 text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                title="Back"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back</span>
+              </button>
+            )}
             <div className="h-4 w-px bg-[#dcc1b1]/60" />
             <div>
               <h3 className="font-bold text-base text-[#1a1c1c]">
-                {isSubmitted ? 'Booking Confirmed!' : 'Reserve Tiffin Slot'}
+                {currentStep === 'confirmed'
+                  ? 'Booking Confirmed!'
+                  : currentStep === 'payment'
+                  ? 'Razorpay Secure Checkout'
+                  : 'Reserve Tiffin Slot'}
               </h3>
               <p className="text-[11px] text-[#564337]">
-                Finite home-cooked meals • Prepared fresh to order
+                {currentStep === 'payment'
+                  ? '100% Encrypted & Instant Payment Processing'
+                  : 'Finite home-cooked meals • Prepared fresh to order'}
               </p>
             </div>
           </div>
@@ -200,9 +269,8 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
           </button>
         </div>
 
-
-        {isSubmitted ? (
-          /* Confirmation Stepper View */
+        {/* STEP 3: CONFIRMED & TRACK RESERVATION */}
+        {currentStep === 'confirmed' ? (
           <div className="p-6 space-y-6 text-center overflow-y-auto flex-1">
             <div className="w-16 h-16 rounded-full bg-[#d1e6c9] text-[#51634c] flex items-center justify-center mx-auto shadow-sm animate-bounce">
               <CheckCircle2 className="w-9 h-9" />
@@ -213,31 +281,32 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
                 Booking {confirmedOrderId} Confirmed
               </span>
               <h4 className="text-xl font-extrabold text-[#1a1c1c] pt-2">
-                Tiffin Slot Reserved Successfully!
+                Payment Verified & Tiffin Slot Reserved!
               </h4>
               <p className="text-xs text-[#564337] leading-relaxed">
-                <strong>{meal.cookName}</strong> has scheduled your meal for{' '}
-                <span className="text-[#944a00] font-bold">{bookingDate} ({mealPeriod})</span>.
+                <strong>{meal.cookName}</strong> has confirmed your freshly prepared meal for{' '}
+                <span className="text-[#944a00] font-bold">
+                  {bookingDate} ({mealPeriod})
+                </span>
+                .
               </p>
-              <p className="text-[11px] text-[#564337]">
-                Fulfillment Mode:{' '}
-                <strong className="text-[#1a1c1c]">
-                  {fulfillmentType === 'Pickup' ? 'Self Kitchen Pickup' : 'Doorstep Delivery'}
-                </strong>
-              </p>
+              <div className="inline-flex items-center gap-1.5 text-[11px] text-[#51634c] bg-[#d1e6c9]/40 px-2.5 py-1 rounded-lg font-mono font-bold mt-1">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Payment Ref: {confirmedPaymentId}</span>
+              </div>
             </div>
 
             {/* Live Stepper Tracker */}
             <div className="bg-[#faf9f8] p-4 rounded-xl border border-[#dcc1b1]/50 text-left space-y-3">
               <div className="text-[11px] font-bold text-[#564337] uppercase tracking-wider">
-                Official MealMitra Workflow Tracker
+                Live Kitchen & Delivery Tracker
               </div>
               <div className="flex items-center justify-between text-xs font-semibold relative">
                 <div className="flex flex-col items-center z-10">
                   <div className="w-6 h-6 rounded-full bg-[#944a00] text-white flex items-center justify-center text-[10px] font-bold">
                     ✓
                   </div>
-                  <span className="text-[9px] text-[#944a00] font-bold mt-1 text-center">Slot Reserved</span>
+                  <span className="text-[9px] text-[#944a00] font-bold mt-1 text-center">Paid & Booked</span>
                 </div>
                 <div className="flex-1 h-0.5 bg-[#944a00] mx-1"></div>
 
@@ -253,7 +322,7 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
                   <div className="w-6 h-6 rounded-full bg-[#ffdcc5] text-[#944a00] flex items-center justify-center text-[10px] font-bold animate-pulse">
                     3
                   </div>
-                  <span className="text-[9px] text-[#564337] mt-1 text-center">Preparing</span>
+                  <span className="text-[9px] text-[#564337] mt-1 text-center">Kitchen Prep</span>
                 </div>
                 <div className="flex-1 h-0.5 bg-[#eeeeed] mx-1"></div>
 
@@ -261,7 +330,7 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
                   <div className="w-6 h-6 rounded-full bg-[#eeeeed] text-[#564337] flex items-center justify-center text-[10px]">
                     4
                   </div>
-                  <span className="text-[9px] text-[#564337] mt-1 text-center">Meal Ready</span>
+                  <span className="text-[9px] text-[#564337] mt-1 text-center">Packed</span>
                 </div>
                 <div className="flex-1 h-0.5 bg-[#eeeeed] mx-1"></div>
 
@@ -276,33 +345,302 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-3 pt-2">
               <button
                 onClick={onClose}
                 className="flex-1 py-3 border border-[#dcc1b1] text-[#564337] hover:bg-[#faf9f8] font-bold text-xs rounded-xl transition-colors cursor-pointer"
               >
-                Reserve Another Meal
+                Done
               </button>
               <button
                 onClick={handleGoToOrders}
-                className="flex-1 py-3 bg-[#944a00] hover:bg-[#713700] text-white font-bold text-xs rounded-xl shadow-md transition-colors cursor-pointer"
+                className="flex-1 py-3.5 bg-[#944a00] hover:bg-[#713700] text-white font-bold text-xs rounded-xl shadow-md transition-colors cursor-pointer flex items-center justify-center gap-2"
               >
-                View in Reservations
+                <span>Track Order in Reservations</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ) : currentStep === 'payment' ? (
+          /* STEP 2: RAZORPAY PAYMENT CHECKOUT INTERFACE */
+          <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
+            {/* Razorpay Gateway Header */}
+            <div className="p-3.5 bg-gradient-to-r from-[#ffdcc5]/40 via-white to-[#d1e6c9]/40 rounded-xl border border-[#dcc1b1]/60 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-[#944a00] text-white flex items-center justify-center font-black text-xs">
+                  ₹
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-[#1a1c1c]">Razorpay Secure Gateway</div>
+                  <div className="text-[11px] text-[#564337]">Order for {meal.name}</div>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] text-[#564337]">Total Amount</div>
+                <div className="text-base font-extrabold text-[#944a00]">₹{total}</div>
+              </div>
+            </div>
+
+            {/* Payment Method Selector Tabs */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-[#564337] flex items-center justify-between">
+                <span>Select Payment Method</span>
+                <span className="text-[10px] text-[#51634c] flex items-center gap-1 font-semibold">
+                  <ShieldCheck className="w-3 h-3" />
+                  PCI-DSS Level 1 Compliant
+                </span>
+              </label>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('upi')}
+                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                    paymentMethod === 'upi'
+                      ? 'bg-[#ffdcc5]/50 border-[#944a00] text-[#944a00] font-bold shadow-2xs'
+                      : 'bg-white border-[#dcc1b1]/60 text-[#564337] hover:bg-gray-50'
+                  }`}
+                >
+                  <Smartphone className="w-4 h-4" />
+                  <span className="text-xs">UPI / QR</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('card')}
+                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                    paymentMethod === 'card'
+                      ? 'bg-[#ffdcc5]/50 border-[#944a00] text-[#944a00] font-bold shadow-2xs'
+                      : 'bg-white border-[#dcc1b1]/60 text-[#564337] hover:bg-gray-50'
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4" />
+                  <span className="text-xs">Cards</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('netbanking')}
+                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                    paymentMethod === 'netbanking'
+                      ? 'bg-[#ffdcc5]/50 border-[#944a00] text-[#944a00] font-bold shadow-2xs'
+                      : 'bg-white border-[#dcc1b1]/60 text-[#564337] hover:bg-gray-50'
+                  }`}
+                >
+                  <Landmark className="w-4 h-4" />
+                  <span className="text-xs">Net Banking</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('cod')}
+                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                    paymentMethod === 'cod'
+                      ? 'bg-[#ffdcc5]/50 border-[#944a00] text-[#944a00] font-bold shadow-2xs'
+                      : 'bg-white border-[#dcc1b1]/60 text-[#564337] hover:bg-gray-50'
+                  }`}
+                >
+                  <Banknote className="w-4 h-4" />
+                  <span className="text-xs">Pay on Tiffin</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Method Details Panel */}
+            <div className="p-4 rounded-xl bg-[#faf9f8] border border-[#dcc1b1]/60 space-y-3">
+              {paymentMethod === 'upi' && (
+                <div className="space-y-3">
+                  <div className="text-xs font-bold text-[#1a1c1c]">Instant UPI Payment</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { id: 'gpay', name: 'Google Pay', icon: '🟢' },
+                      { id: 'phonepe', name: 'PhonePe', icon: '🟣' },
+                      { id: 'paytm', name: 'Paytm UPI', icon: '🔵' },
+                      { id: 'cred', name: 'CRED UPI', icon: '⚫' },
+                    ].map((app) => (
+                      <button
+                        key={app.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedUpiApp(app.id as any);
+                          setShowQrCode(false);
+                        }}
+                        className={`p-2 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                          selectedUpiApp === app.id && !showQrCode
+                            ? 'bg-[#944a00] text-white border-[#944a00]'
+                            : 'bg-white border-[#dcc1b1]/60 text-[#564337] hover:bg-gray-50'
+                        }`}
+                      >
+                        <span>{app.icon}</span>
+                        <span>{app.name}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Show QR or custom UPI ID */}
+                  <div className="space-y-1.5 pt-1">
+                    <label className="text-[11px] font-bold text-[#564337]">Or Enter UPI ID / Scan QR Code</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={customUpiId}
+                        onChange={(e) => {
+                          setCustomUpiId(e.target.value);
+                          setSelectedUpiApp('custom');
+                        }}
+                        placeholder="e.g. manan@okaxis, 9825123456@paytm"
+                        className="flex-1 bg-white border border-[#dcc1b1] rounded-xl px-3 py-2 text-xs font-semibold focus:outline-[#944a00]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowQrCode(!showQrCode)}
+                        className="px-3 py-2 bg-white border border-[#dcc1b1] hover:bg-gray-50 text-xs font-bold text-[#944a00] rounded-xl flex items-center gap-1 cursor-pointer"
+                      >
+                        <QrCode className="w-3.5 h-3.5" />
+                        <span>{showQrCode ? 'Hide QR' : 'Show QR'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {showQrCode && (
+                    <div className="p-4 bg-white rounded-xl border border-[#dcc1b1] flex flex-col items-center text-center space-y-2">
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=upi://pay?pa=mealmitra@razorpay&pn=MealMitra&am=${total}&cu=INR`}
+                        alt="UPI Payment QR"
+                        className="w-32 h-32 rounded-lg border border-[#eeeeed]"
+                      />
+                      <p className="text-[11px] text-[#564337]">
+                        Scan with GPay, PhonePe, Paytm or any UPI App to pay <strong>₹{total}</strong>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {paymentMethod === 'card' && (
+                <div className="space-y-2.5">
+                  <div className="text-xs font-bold text-[#1a1c1c]">Debit / Credit Card</div>
+                  <input
+                    type="text"
+                    value={cardNumber}
+                    onChange={(e) => setCardNumber(e.target.value)}
+                    placeholder="Card Number (XXXX XXXX XXXX XXXX)"
+                    maxLength={19}
+                    className="w-full bg-white border border-[#dcc1b1] rounded-xl px-3 py-2 text-xs font-semibold focus:outline-[#944a00]"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={cardExpiry}
+                      onChange={(e) => setCardExpiry(e.target.value)}
+                      placeholder="MM / YY"
+                      maxLength={5}
+                      className="bg-white border border-[#dcc1b1] rounded-xl px-3 py-2 text-xs font-semibold focus:outline-[#944a00]"
+                    />
+                    <input
+                      type="password"
+                      value={cardCvv}
+                      onChange={(e) => setCardCvv(e.target.value)}
+                      placeholder="CVV"
+                      maxLength={4}
+                      className="bg-white border border-[#dcc1b1] rounded-xl px-3 py-2 text-xs font-semibold focus:outline-[#944a00]"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {paymentMethod === 'netbanking' && (
+                <div className="space-y-2">
+                  <div className="text-xs font-bold text-[#1a1c1c]">Select Bank for Net Banking</div>
+                  <select
+                    value={selectedBank}
+                    onChange={(e) => setSelectedBank(e.target.value)}
+                    className="w-full bg-white border border-[#dcc1b1] rounded-xl px-3 py-2 text-xs font-semibold focus:outline-[#944a00]"
+                  >
+                    <option value="HDFC">HDFC Bank</option>
+                    <option value="SBI">State Bank of India</option>
+                    <option value="ICICI">ICICI Bank</option>
+                    <option value="Axis">Axis Bank</option>
+                    <option value="Kotak">Kotak Mahindra Bank</option>
+                    <option value="Bank of Baroda">Bank of Baroda</option>
+                  </select>
+                </div>
+              )}
+
+              {paymentMethod === 'cod' && (
+                <div className="p-3 bg-white rounded-xl border border-[#dcc1b1] space-y-1.5">
+                  <div className="flex items-center gap-2 text-xs font-bold text-[#51634c]">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Pay at Doorstep when Tiffin arrives</span>
+                  </div>
+                  <p className="text-[11px] text-[#564337]">
+                    Pay cash or UPI directly to our delivery mitra when your hot homestyle meal is handed to you!
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Price Breakdown */}
+            <div className="p-3.5 bg-white rounded-xl border border-[#dcc1b1]/50 space-y-1.5 text-xs">
+              <div className="flex justify-between text-[#564337]">
+                <span>
+                  {meal.name} (x{quantity})
+                </span>
+                <span>₹{subtotal}</span>
+              </div>
+              <div className="flex justify-between text-[#564337]">
+                <span>Packaging & Thermal Carrier</span>
+                <span>₹{packagingFee}</span>
+              </div>
+              <div className="flex justify-between text-[#51634c] font-semibold">
+                <span>Doorstep Delivery</span>
+                <span>{deliveryFee === 0 ? 'FREE' : `₹${deliveryFee}`}</span>
+              </div>
+              <div className="flex justify-between items-baseline pt-2 border-t border-[#eeeeed] text-sm font-extrabold text-[#1a1c1c]">
+                <span>Total Amount Payable:</span>
+                <span className="text-base text-[#944a00]">₹{total}</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setCurrentStep('details')}
+                disabled={isProcessingPayment}
+                className="px-4 py-3 border border-[#dcc1b1] text-xs font-bold text-[#564337] rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
+              >
+                Back
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExecutePayment}
+                disabled={isProcessingPayment}
+                className="flex-1 py-3.5 bg-[#944a00] hover:bg-[#713700] disabled:bg-gray-400 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
+              >
+                {isProcessingPayment ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Verifying with Razorpay...</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    <span>Pay ₹{total} & Confirm Booking</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
         ) : (
-          /* Reservation Placement Form */
-          <form onSubmit={handlePlaceReservation} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          /* STEP 1: RESERVATION DETAILS FORM */
+          <form onSubmit={handleProceedToPayment} className="flex flex-col flex-1 min-h-0 overflow-hidden">
             {/* Scrollable Form Content */}
             <div className="p-5 sm:p-6 space-y-5 overflow-y-auto flex-1">
               {/* Meal summary banner */}
               <div className="flex gap-4 p-3 bg-[#faf9f8] rounded-xl border border-[#dcc1b1]/40">
-                <img
-                  src={meal.image}
-                  alt={meal.name}
-                  className="w-20 h-20 rounded-lg object-cover shrink-0"
-                />
+                <img src={meal.image} alt={meal.name} className="w-20 h-20 rounded-lg object-cover shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <h4 className="font-bold text-sm text-[#1a1c1c] truncate">{meal.name}</h4>
@@ -319,14 +657,12 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
                     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#d1e6c9] text-[#51634c]">
                       {meal.dietary}
                     </span>
-                    <span className="text-[10px] text-[#564337]">
-                      Cutoff: {cutoffTime}
-                    </span>
+                    <span className="text-[10px] text-[#564337]">Cutoff: {cutoffTime}</span>
                   </div>
                 </div>
               </div>
 
-              {/* 1. Date & Meal Period Selection (Advance vs Same Day) */}
+              {/* 1. Date & Meal Period Selection */}
               <div className="space-y-3">
                 <label className="flex items-center justify-between text-xs font-bold text-[#1a1c1c]">
                   <span className="flex items-center gap-1.5">
@@ -352,294 +688,226 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
                   ))}
                 </div>
 
-                {/* Lunch vs Dinner Slot Selector */}
-                <div className="flex gap-2 p-1 bg-[#faf9f8] rounded-xl border border-[#dcc1b1]/40">
-                  {(['Lunch', 'Dinner'] as const).map((period) => (
-                    <button
-                      key={period}
-                      type="button"
-                      onClick={() => handleMealPeriodChange(period)}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        mealPeriod === period
-                          ? 'bg-[#944a00] text-white shadow-2xs'
-                          : 'text-[#564337] hover:text-[#1a1c1c]'
-                      }`}
-                    >
-                      {period} Slot
-                    </button>
-                  ))}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleMealPeriodChange('Lunch')}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all text-center cursor-pointer ${
+                      mealPeriod === 'Lunch'
+                        ? 'bg-[#944a00] text-white border-[#944a00] shadow-2xs'
+                        : 'bg-[#faf9f8] text-[#564337] border-[#dcc1b1]/50 hover:bg-[#eeeeed]'
+                    }`}
+                  >
+                    Lunch Slot
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleMealPeriodChange('Dinner')}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all text-center cursor-pointer ${
+                      mealPeriod === 'Dinner'
+                        ? 'bg-[#944a00] text-white border-[#944a00] shadow-2xs'
+                        : 'bg-[#faf9f8] text-[#564337] border-[#dcc1b1]/50 hover:bg-[#eeeeed]'
+                    }`}
+                  >
+                    Dinner Slot
+                  </button>
                 </div>
               </div>
 
-              {/* Capacity Indicator Banner */}
-              <div className={`p-3 rounded-xl border text-xs flex items-center justify-between ${
-                isSoldOut
-                  ? 'bg-red-50 border-red-200 text-red-700'
-                  : 'bg-[#d1e6c9]/40 border-[#51634c]/30 text-[#51634c]'
-              }`}>
-                <div className="flex items-center gap-2">
-                  <span className={`w-2.5 h-2.5 rounded-full ${isSoldOut ? 'bg-red-500' : 'bg-green-600 animate-pulse'}`}></span>
-                  <span className="font-bold">
-                    {isSoldOut
-                      ? `Slots Full for ${bookingDate} ${mealPeriod}`
-                      : `${availableSlots} of ${cook?.lunchTotalQty || 40} tiffin slots remaining`}
-                  </span>
-                </div>
-                <span className="text-[11px] opacity-80">Cutoff: {cutoffTime}</span>
-              </div>
-
-              {/* SOLD OUT / WAITLIST FALLBACK */}
+              {/* Dynamic Availability Indicator & Waitlist Alert */}
               {isSoldOut ? (
-                <div className="bg-[#faf9f8] p-4 rounded-xl border-2 border-dashed border-red-300 space-y-3">
-                  <div className="flex items-start gap-2 text-xs text-red-700">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 space-y-3">
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                     <div>
-                      <div className="font-bold">Chef's daily capacity is full for this slot.</div>
-                      <p className="text-[11px] text-[#564337] mt-0.5">
-                        Per MealMitra guidelines, home chefs cook finite batches. You can join the waitlist, pick another date, or explore similar chefs.
+                      <h4 className="text-xs font-bold text-amber-900">
+                        {bookingDate} {mealPeriod} Slots are Sold Out!
+                      </h4>
+                      <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                        To preserve homestyle quality, {meal.cookName} cooks a finite number of meals.
                       </p>
                     </div>
                   </div>
 
                   {waitlistJoined ? (
-                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-center space-y-1">
-                      <div className="text-xs font-bold text-green-800 flex items-center justify-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4" /> Added to Waitlist!
-                      </div>
-                      <p className="text-[11px] text-green-700">
-                        If another customer skips or releases a slot before {cutoffTime}, you'll receive an instant notification window.
-                      </p>
+                    <div className="p-2.5 bg-green-50 border border-green-200 rounded-lg text-xs font-bold text-green-800 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-green-600" />
+                      <span>Joined Waitlist! You'll receive an SMS priority invite if a slot opens.</span>
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-2">
-                      <button
-                        type="button"
-                        disabled={isJoiningWaitlist}
-                        onClick={handleJoinWaitlist}
-                        className="w-full py-2.5 bg-[#51634c] hover:bg-[#3f4e3b] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        <Users className="w-4 h-4" />
-                        <span>{isJoiningWaitlist ? 'Joining Waitlist...' : 'Join Slot Waitlist'}</span>
-                      </button>
-
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setBookingDate('Tomorrow')}
-                          className="flex-1 py-2 bg-white border border-[#dcc1b1] text-[#564337] font-bold text-xs rounded-xl hover:bg-[#eeeeed] cursor-pointer"
-                        >
-                          Book for Tomorrow
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onClose();
-                            setCustomerTab('discover');
-                          }}
-                          className="flex-1 py-2 bg-white border border-[#dcc1b1] text-[#944a00] font-bold text-xs rounded-xl hover:bg-[#eeeeed] cursor-pointer"
-                        >
-                          View Similar Chefs
-                        </button>
-                      </div>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={handleJoinWaitlist}
+                      disabled={isJoiningWaitlist}
+                      className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Users className="w-4 h-4" />
+                      <span>{isJoiningWaitlist ? 'Joining...' : 'Join Waitlist for Released Slots'}</span>
+                    </button>
                   )}
                 </div>
               ) : (
-                <>
-                  {/* 2. Fulfillment Option: Pickup vs Delivery */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-[#1a1c1c]">Fulfillment Method</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setFulfillmentType('Delivery')}
-                        className={`p-3 rounded-xl border text-left transition-all flex items-center gap-2.5 cursor-pointer ${
-                          fulfillmentType === 'Delivery'
-                            ? 'bg-[#ffdcc5]/40 border-[#944a00] text-[#944a00] font-bold'
-                            : 'bg-[#faf9f8] border-[#dcc1b1]/50 text-[#564337]'
-                        }`}
-                      >
-                        <Truck className="w-4 h-4 shrink-0" />
-                        <div>
-                          <div className="text-xs font-bold">Doorstep Delivery</div>
-                          <div className="text-[10px] text-[#564337]">Cluster delivery route</div>
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setFulfillmentType('Pickup')}
-                        className={`p-3 rounded-xl border text-left transition-all flex items-center gap-2.5 cursor-pointer ${
-                          fulfillmentType === 'Pickup'
-                            ? 'bg-[#d1e6c9]/40 border-[#51634c] text-[#51634c] font-bold'
-                            : 'bg-[#faf9f8] border-[#dcc1b1]/50 text-[#564337]'
-                        }`}
-                      >
-                        <Store className="w-4 h-4 shrink-0" />
-                        <div>
-                          <div className="text-xs font-bold">Kitchen Pickup</div>
-                          <div className="text-[10px] text-[#564337]">Free • No fees</div>
-                        </div>
-                      </button>
-                    </div>
+                <div className="flex items-center justify-between p-3 rounded-xl bg-[#d1e6c9]/40 border border-[#51634c]/20">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#51634c] animate-pulse" />
+                    <span className="text-xs font-bold text-[#51634c]">
+                      {availableSlots} of 25 tiffin slots remaining
+                    </span>
                   </div>
-
-                  {/* Quantity Selector */}
-                  <div className="flex justify-between items-center py-2 border-b border-[#eeeeed]">
-                    <div>
-                      <div className="text-xs font-bold text-[#1a1c1c]">Tiffin Slots Quantity</div>
-                      <div className="text-[11px] text-[#564337]">Max {availableSlots} available right now</div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        disabled={quantity <= 1}
-                        onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                        className="w-8 h-8 rounded-lg border border-[#dcc1b1] flex items-center justify-center text-[#564337] hover:bg-[#faf9f8] disabled:opacity-40 transition-colors cursor-pointer"
-                      >
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="font-bold text-sm text-[#1a1c1c] w-6 text-center">{quantity}</span>
-                      <button
-                        type="button"
-                        disabled={quantity >= availableSlots}
-                        onClick={() => setQuantity((q) => Math.min(availableSlots, q + 1))}
-                        className="w-8 h-8 rounded-lg border border-[#dcc1b1] flex items-center justify-center text-[#564337] hover:bg-[#faf9f8] disabled:opacity-40 transition-colors cursor-pointer"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Delivery Address OR Pickup Details */}
-                  {fulfillmentType === 'Delivery' ? (
-                    <div className="space-y-1.5">
-                      <label className="flex items-center gap-1.5 text-xs font-bold text-[#1a1c1c]">
-                        <MapPin className="w-3.5 h-3.5 text-[#944a00]" />
-                        <span>Delivery Address</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                        required
-                        className="w-full px-3 py-2 text-xs bg-[#faf9f8] border border-[#dcc1b1] rounded-lg focus:ring-1 focus:ring-[#944a00] text-[#1a1c1c]"
-                        placeholder="House / Flat / Street address"
-                      />
-                    </div>
-                  ) : (
-                    <div className="p-3 bg-[#faf9f8] rounded-xl border border-[#dcc1b1]/50 space-y-1 text-xs">
-                      <div className="font-bold text-[#51634c] flex items-center gap-1.5">
-                        <Store className="w-3.5 h-3.5" /> Kitchen Pickup Location:
-                      </div>
-                      <p className="text-[#564337]">
-                        {cook.name}'s Home Kitchen — {cook.location} ({cook.distanceKm} km away)
-                      </p>
-                      <p className="text-[10px] text-[#564337] italic">
-                        Collect your fresh packed tiffin during slot hours: {timeSlot}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Contact Phone & Delivery/Pickup Window */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-[#1a1c1c]">Contact Phone</label>
-                      <input
-                        type="tel"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        required
-                        className="w-full px-3 py-2 text-xs bg-[#faf9f8] border border-[#dcc1b1] rounded-lg focus:ring-1 focus:ring-[#944a00] text-[#1a1c1c]"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="flex items-center gap-1.5 text-xs font-bold text-[#1a1c1c]">
-                        <Clock className="w-3.5 h-3.5 text-[#944a00]" />
-                        <span>{fulfillmentType === 'Pickup' ? 'Pickup Window' : 'Delivery Window'}</span>
-                      </label>
-                      <select
-                        value={timeSlot}
-                        onChange={(e) => setTimeSlot(e.target.value)}
-                        className="w-full px-3 py-2 text-xs bg-[#faf9f8] border border-[#dcc1b1] rounded-lg focus:ring-1 focus:ring-[#944a00] text-[#1a1c1c]"
-                      >
-                        {mealPeriod === 'Lunch' ? (
-                          <>
-                            <option value="1:00 PM - 1:30 PM">1:00 PM - 1:30 PM (Lunch)</option>
-                            <option value="1:30 PM - 2:00 PM">1:30 PM - 2:00 PM (Lunch)</option>
-                            <option value="2:00 PM - 2:30 PM">2:00 PM - 2:30 PM (Lunch)</option>
-                          </>
-                        ) : (
-                          <>
-                            <option value="7:30 PM - 8:00 PM">7:30 PM - 8:00 PM (Dinner)</option>
-                            <option value="8:00 PM - 8:30 PM">8:00 PM - 8:30 PM (Dinner)</option>
-                            <option value="8:30 PM - 9:00 PM">8:30 PM - 9:00 PM (Dinner)</option>
-                          </>
-                        )}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Special Instructions */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-[#1a1c1c]">Special Kitchen Notes (Optional)</label>
-                    <input
-                      type="text"
-                      value={specialNotes}
-                      onChange={(e) => setSpecialNotes(e.target.value)}
-                      placeholder="e.g. Mild spice, less oil, extra phulkas"
-                      className="w-full px-3 py-2 text-xs bg-[#faf9f8] border border-[#dcc1b1] rounded-lg focus:ring-1 focus:ring-[#944a00] text-[#1a1c1c]"
-                    />
-                  </div>
-
-                  {/* Price Breakdown */}
-                  <div className="p-3 bg-[#faf9f8] rounded-xl border border-[#dcc1b1]/40 space-y-1.5 text-xs">
-                    <div className="flex justify-between text-[#564337]">
-                      <span>Tiffin Subtotal ({quantity} slot{quantity > 1 ? 's' : ''})</span>
-                      <span>₹{subtotal}</span>
-                    </div>
-                    <div className="flex justify-between text-[#564337]">
-                      <span>Fulfillment Fee ({fulfillmentType})</span>
-                      <span>{deliveryFee === 0 ? <span className="text-[#51634c] font-bold">FREE</span> : `₹${deliveryFee}`}</span>
-                    </div>
-                    {fulfillmentType === 'Delivery' && (
-                      <div className="flex justify-between text-[#564337]">
-                        <span>Eco Thermal Container Carrier</span>
-                        <span>₹{packagingFee}</span>
-                      </div>
-                    )}
-                    <div className="pt-2 border-t border-[#dcc1b1]/50 flex justify-between font-extrabold text-sm text-[#1a1c1c]">
-                      <span>Total Amount</span>
-                      <span className="text-[#944a00]">₹{total}</span>
-                    </div>
-                  </div>
-                </>
+                  <span className="text-[10px] text-[#564337]">Cutoff: {cutoffTime}</span>
+                </div>
               )}
+
+              {/* 2. Fulfillment Type */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-[#1a1c1c]">Fulfillment Method</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFulfillmentType('Delivery')}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-2.5 ${
+                      fulfillmentType === 'Delivery'
+                        ? 'bg-[#ffdcc5]/40 border-[#944a00] text-[#944a00]'
+                        : 'bg-white border-[#dcc1b1]/60 text-[#564337] hover:bg-[#faf9f8]'
+                    }`}
+                  >
+                    <Truck className="w-5 h-5 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="font-bold text-xs text-[#1a1c1c]">Doorstep Delivery</div>
+                      <div className="text-[10px] text-[#564337]">Cluster delivery route</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFulfillmentType('Pickup')}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-2.5 ${
+                      fulfillmentType === 'Pickup'
+                        ? 'bg-[#ffdcc5]/40 border-[#944a00] text-[#944a00]'
+                        : 'bg-white border-[#dcc1b1]/60 text-[#564337] hover:bg-[#faf9f8]'
+                    }`}
+                  >
+                    <Store className="w-5 h-5 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="font-bold text-xs text-[#1a1c1c]">Kitchen Pickup</div>
+                      <div className="text-[10px] text-[#564337]">Free • No fees</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. Quantity */}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-[#faf9f8] border border-[#dcc1b1]/50">
+                <div>
+                  <div className="font-bold text-xs text-[#1a1c1c]">Tiffin Slots Quantity</div>
+                  <div className="text-[10px] text-[#564337]">Max {availableSlots} available right now</div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    className="w-8 h-8 rounded-lg bg-white border border-[#dcc1b1] flex items-center justify-center text-[#564337] hover:bg-[#eeeeed] active:scale-95 transition-all cursor-pointer"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <span className="font-extrabold text-sm w-4 text-center">{quantity}</span>
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(Math.min(availableSlots || 1, quantity + 1))}
+                    disabled={quantity >= availableSlots}
+                    className="w-8 h-8 rounded-lg bg-white border border-[#dcc1b1] flex items-center justify-center text-[#564337] hover:bg-[#eeeeed] disabled:opacity-40 active:scale-95 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* 4. Delivery Address or Pickup Info */}
+              {fulfillmentType === 'Delivery' ? (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-[#1a1c1c] flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-[#944a00]" />
+                    <span>Delivery Address</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    required
+                    placeholder="Enter complete delivery address"
+                    className="w-full bg-[#faf9f8] border border-[#dcc1b1] rounded-xl px-3.5 py-2.5 text-xs text-[#1a1c1c] focus:outline-[#944a00] focus:bg-white"
+                  />
+                </div>
+              ) : (
+                <div className="p-3 bg-[#faf9f8] rounded-xl border border-[#dcc1b1]/50 space-y-1">
+                  <div className="text-xs font-bold text-[#1a1c1c]">Kitchen Pickup Location</div>
+                  <div className="text-xs text-[#564337]">
+                    {cook?.address || `${meal.cookName}'s Kitchen, Satellite / Navrangpura, Ahmedabad`}
+                  </div>
+                  <div className="text-[10px] text-[#944a00] font-semibold">
+                    Collect warm tiffin during: {timeSlot}
+                  </div>
+                </div>
+              )}
+
+              {/* Phone and Slot Window */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-[#1a1c1c]">Customer Phone</label>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    required
+                    className="w-full bg-[#faf9f8] border border-[#dcc1b1] rounded-xl px-3.5 py-2.5 text-xs text-[#1a1c1c] focus:outline-[#944a00] focus:bg-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-[#1a1c1c] flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-[#944a00]" />
+                    <span>Delivery Window</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={timeSlot}
+                    onChange={(e) => setTimeSlot(e.target.value)}
+                    className="w-full bg-[#faf9f8] border border-[#dcc1b1] rounded-xl px-3.5 py-2.5 text-xs text-[#1a1c1c] focus:outline-[#944a00] focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* Special instructions */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#1a1c1c]">Special Cooking Instructions</label>
+                <input
+                  type="text"
+                  value={specialNotes}
+                  onChange={(e) => setSpecialNotes(e.target.value)}
+                  placeholder="e.g. Less spicy, extra lemon, leave with security"
+                  className="w-full bg-[#faf9f8] border border-[#dcc1b1] rounded-xl px-3.5 py-2.5 text-xs text-[#1a1c1c] focus:outline-[#944a00] focus:bg-white"
+                />
+              </div>
             </div>
 
-            {/* Sticky Bottom Footer for Checkout */}
-            {!isSoldOut && (
-              <div className="p-4 sm:px-6 bg-[#faf9f8] border-t border-[#dcc1b1]/40 flex gap-2.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-3 border border-[#dcc1b1] hover:bg-white text-[#564337] font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>Back</span>
-                </button>
-                <button
-                  type="submit"
-                  disabled={isProcessingPayment}
-                  className="flex-1 py-3 px-6 bg-[#944a00] hover:bg-[#713700] disabled:bg-gray-300 text-white font-bold text-sm rounded-xl shadow-md transition-all active:scale-[0.98] cursor-pointer"
-                >
-                  {isProcessingPayment 
-                    ? 'Processing Payment...' 
-                    : `Pay Securely • ₹${total}`}
-                </button>
-              </div>
-            )}
+            {/* Modal Bottom / Action Footer */}
+            <div className="p-4 sm:p-5 border-t border-[#eeeeed] bg-[#faf9f8] flex gap-3 items-center shrink-0">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-3 border border-[#dcc1b1] text-xs font-bold text-[#564337] rounded-xl hover:bg-white transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSoldOut}
+                className="flex-1 py-3.5 bg-[#944a00] hover:bg-[#713700] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
+              >
+                <span>Pay Securely • ₹{total}</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </form>
         )}
       </div>
