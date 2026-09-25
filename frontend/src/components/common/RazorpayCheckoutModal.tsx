@@ -1,18 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
-  ShieldCheck,
   CreditCard,
   Smartphone,
   Landmark,
   Wallet,
-  Banknote,
-  QrCode,
   CheckCircle2,
-  AlertCircle,
   MoreHorizontal,
   ChevronRight,
   Lock,
+  Search,
+  Building2,
+  Sparkles,
+  QrCode,
+  ArrowRight,
 } from 'lucide-react';
 import { paymentService } from '../../services/payment.service';
 
@@ -35,6 +36,36 @@ export interface RazorpayCheckoutModalProps {
   subscriptionData?: any;
 }
 
+interface BankItem {
+  code: string;
+  name: string;
+  popular?: boolean;
+  shortName: string;
+  color: string;
+  bg: string;
+}
+
+const ALL_BANKS: BankItem[] = [
+  { code: 'HDFC', name: 'HDFC Bank', shortName: 'HDFC', popular: true, color: '#004c8f', bg: '#e6f0fa' },
+  { code: 'SBI', name: 'State Bank of India', shortName: 'SBI', popular: true, color: '#280071', bg: '#ede6fa' },
+  { code: 'ICICI', name: 'ICICI Bank', shortName: 'ICICI', popular: true, color: '#b83c16', bg: '#faeae6' },
+  { code: 'AXIS', name: 'Axis Bank', shortName: 'Axis', popular: true, color: '#97144d', bg: '#fbe7ef' },
+  { code: 'KOTAK', name: 'Kotak Mahindra Bank', shortName: 'Kotak', popular: true, color: '#ed1c24', bg: '#fae6e6' },
+  { code: 'BOB', name: 'Bank of Baroda', shortName: 'BOB', popular: true, color: '#f26522', bg: '#fbeee6' },
+  { code: 'PNB', name: 'Punjab National Bank', shortName: 'PNB', popular: false, color: '#a20f2e', bg: '#fbe7eb' },
+  { code: 'CANARA', name: 'Canara Bank', shortName: 'Canara', popular: false, color: '#0083ca', bg: '#e6f5fb' },
+  { code: 'UNION', name: 'Union Bank of India', shortName: 'Union', popular: false, color: '#005f9e', bg: '#e6f2f9' },
+  { code: 'INDUSIND', name: 'IndusInd Bank', shortName: 'IndusInd', popular: false, color: '#88001b', bg: '#fae6e9' },
+  { code: 'YES', name: 'Yes Bank', shortName: 'Yes Bank', popular: false, color: '#004b8d', bg: '#e6f0f8' },
+  { code: 'IDFC', name: 'IDFC FIRST Bank', shortName: 'IDFC', popular: false, color: '#9d1d27', bg: '#fae7e8' },
+  { code: 'FEDERAL', name: 'Federal Bank', shortName: 'Federal', popular: false, color: '#003666', bg: '#e6edf5' },
+  { code: 'BOI', name: 'Bank of India', shortName: 'BOI', popular: false, color: '#e47911', bg: '#faefe6' },
+  { code: 'RBL', name: 'RBL Bank', shortName: 'RBL', popular: false, color: '#002663', bg: '#e6ecf4' },
+  { code: 'AU', name: 'AU Small Finance Bank', shortName: 'AU Bank', popular: false, color: '#682054', bg: '#f5e8f2' },
+  { code: 'SCB', name: 'Standard Chartered Bank', shortName: 'StanChart', popular: false, color: '#00703c', bg: '#e6f5ee' },
+  { code: 'IDBI', name: 'IDBI Bank', shortName: 'IDBI', popular: false, color: '#005b38', bg: '#e6f3ee' },
+];
+
 export const RazorpayCheckoutModal: React.FC<RazorpayCheckoutModalProps> = ({
   isOpen,
   amount,
@@ -48,7 +79,7 @@ export const RazorpayCheckoutModal: React.FC<RazorpayCheckoutModalProps> = ({
   orderData,
   subscriptionData,
 }) => {
-  const [activeTab, setActiveTab] = useState<'cards' | 'netbanking' | 'upi' | 'wallet' | 'cod'>('cards');
+  const [activeTab, setActiveTab] = useState<'cards' | 'netbanking' | 'wallet' | 'upi' | 'cod'>('cards');
   
   // Card inputs
   const [cardNumber, setCardNumber] = useState('');
@@ -56,13 +87,14 @@ export const RazorpayCheckoutModal: React.FC<RazorpayCheckoutModalProps> = ({
   const [cardCvv, setCardCvv] = useState('');
   const [saveCard, setSaveCard] = useState(true);
 
+  // Netbanking search and selection
+  const [bankSearchQuery, setBankSearchQuery] = useState('');
+  const [selectedBank, setSelectedBank] = useState<BankItem>(ALL_BANKS[0]);
+
   // UPI inputs
   const [selectedUpiApp, setSelectedUpiApp] = useState<'gpay' | 'phonepe' | 'paytm' | 'cred' | 'qr'>('gpay');
   const [customUpiId, setCustomUpiId] = useState('');
   const [showQrCode, setShowQrCode] = useState(false);
-
-  // Netbanking inputs
-  const [selectedBank, setSelectedBank] = useState('HDFC');
 
   // Wallet inputs
   const [selectedWallet, setSelectedWallet] = useState('Paytm');
@@ -72,16 +104,26 @@ export const RazorpayCheckoutModal: React.FC<RazorpayCheckoutModalProps> = ({
   const [processingStatus, setProcessingStatus] = useState('Connecting to Razorpay gateway...');
   const [progressPercent, setProgressPercent] = useState(15);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     if (isOpen) {
       setIsProcessing(false);
       setIsSuccess(false);
-      setErrorMessage('');
       setProgressPercent(15);
+      setBankSearchQuery('');
     }
   }, [isOpen]);
+
+  // Filtered Banks for Netbanking Search
+  const filteredBanks = useMemo(() => {
+    if (!bankSearchQuery.trim()) {
+      return ALL_BANKS;
+    }
+    const q = bankSearchQuery.toLowerCase();
+    return ALL_BANKS.filter(
+      (b) => b.name.toLowerCase().includes(q) || b.shortName.toLowerCase().includes(q) || b.code.toLowerCase().includes(q)
+    );
+  }, [bankSearchQuery]);
 
   if (!isOpen) return null;
 
@@ -105,18 +147,18 @@ export const RazorpayCheckoutModal: React.FC<RazorpayCheckoutModalProps> = ({
   };
 
   const getActiveMethodName = () => {
-    if (activeTab === 'cards') return 'Card';
+    if (activeTab === 'cards') return `Card (ending ${cardNumber.slice(-4) || '****'})`;
+    if (activeTab === 'netbanking') return `${selectedBank.name} Netbanking`;
+    if (activeTab === 'wallet') return `${selectedWallet} Wallet`;
     if (activeTab === 'upi') {
-      if (showQrCode || selectedUpiApp === 'qr') return 'UPI QR';
+      if (showQrCode || selectedUpiApp === 'qr') return 'UPI QR Code';
       if (selectedUpiApp === 'gpay') return 'Google Pay (UPI)';
       if (selectedUpiApp === 'phonepe') return 'PhonePe (UPI)';
       if (selectedUpiApp === 'paytm') return 'Paytm UPI';
       if (selectedUpiApp === 'cred') return 'CRED UPI';
       return customUpiId ? `UPI (${customUpiId})` : 'UPI';
     }
-    if (activeTab === 'netbanking') return `${selectedBank} Netbanking`;
-    if (activeTab === 'wallet') return `${selectedWallet} Wallet`;
-    return 'Pay on Delivery (Cash)';
+    return 'Pay on Delivery (Cash/UPI)';
   };
 
   const handlePay = async () => {
@@ -131,7 +173,6 @@ export const RazorpayCheckoutModal: React.FC<RazorpayCheckoutModalProps> = ({
     }
 
     setIsProcessing(true);
-    setErrorMessage('');
     setProgressPercent(20);
     setProcessingStatus('Connecting to Razorpay gateway...');
 
@@ -197,78 +238,91 @@ export const RazorpayCheckoutModal: React.FC<RazorpayCheckoutModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-hidden animate-in fade-in duration-200">
-      {/* Exact Razorpay Split Modal container */}
-      <div className="bg-white rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl border border-gray-200 flex flex-col md:flex-row my-auto animate-in zoom-in-95 duration-150 relative min-h-[460px]">
+    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-hidden animate-in fade-in duration-200">
+      
+      {/* Razorpay Exact Split Modal Container */}
+      <div className="bg-white rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl border border-[#dcc1b1]/50 flex flex-col md:flex-row my-auto animate-in zoom-in-95 duration-150 relative min-h-[490px]">
         
-        {/* LEFT BRANDING SIDEBAR (Orange / Terracotta MealMitra Theme) */}
-        <div className="w-full md:w-64 bg-gradient-to-b from-[#a44c00] via-[#944a00] to-[#713700] p-6 text-white flex flex-col justify-between relative overflow-hidden shrink-0">
-          {/* Subtle 3D background accent */}
+        {/* ======================================================== */}
+        {/* LEFT BRANDING SIDEBAR (Terracotta MealMitra Theme)        */}
+        {/* ======================================================== */}
+        <div className="w-full md:w-68 bg-gradient-to-b from-[#8f4100] via-[#823800] to-[#5a2500] p-6 text-white flex flex-col justify-between relative overflow-hidden shrink-0">
+          
+          {/* Subtle 3D background accent & geometric styling */}
           <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full -mr-16 -mt-16 pointer-events-none" />
-          <div className="absolute bottom-12 left-0 w-40 h-40 bg-black/10 rounded-full -ml-12 pointer-events-none" />
+          <div className="absolute bottom-16 left-0 w-44 h-44 bg-black/15 rounded-full -ml-16 pointer-events-none" />
 
-          {/* Top Logo & App Name */}
+          {/* Top Logo & App Title */}
           <div className="space-y-4 relative z-10">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-white/95 p-1.5 flex items-center justify-center shadow-md">
+              <div className="w-10 h-10 rounded-xl bg-white p-1.5 flex items-center justify-center shadow-lg">
                 <img
                   src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=80&q=80"
                   alt="MealMitra"
-                  className="w-full h-full object-cover rounded-md"
+                  className="w-full h-full object-cover rounded-lg"
                 />
               </div>
-              <span className="font-extrabold text-lg tracking-tight text-white drop-shadow-xs">
-                MealMitra
-              </span>
+              <div>
+                <span className="font-extrabold text-xl tracking-tight text-white drop-shadow-xs block leading-tight">
+                  MealMitra
+                </span>
+                <span className="text-[10px] text-white/80 font-medium tracking-wide">
+                  Ghar Ka Khana
+                </span>
+              </div>
             </div>
 
             {/* Price Summary Card */}
-            <div className="bg-white rounded-xl p-3.5 text-[#1a1c1c] shadow-md border border-white/20">
-              <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+            <div className="bg-white rounded-2xl p-4 text-[#1a1c1c] shadow-lg border border-white/20">
+              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
                 Price Summary
               </div>
-              <div className="text-2xl font-black text-[#1a1c1c] pt-0.5">
+              <div className="text-3xl font-black text-[#1a1c1c] pt-1">
                 ₹{amount}
               </div>
             </div>
 
             {/* Using as Contact Card */}
-            <div className="bg-white/90 hover:bg-white rounded-xl p-2.5 px-3 text-[#1a1c1c] shadow-xs flex items-center justify-between text-xs font-semibold cursor-pointer transition-colors">
+            <div className="bg-white/95 hover:bg-white rounded-xl p-3 text-[#1a1c1c] shadow-sm flex items-center justify-between text-xs font-semibold cursor-pointer transition-colors border border-white/40">
               <div className="flex items-center gap-2 truncate">
-                <Smartphone className="w-3.5 h-3.5 text-[#944a00] shrink-0" />
-                <span className="truncate text-gray-700">Using as {customerPhone}</span>
+                <Smartphone className="w-4 h-4 text-[#8f4100] shrink-0" />
+                <span className="truncate text-gray-800 font-medium">Using as {customerPhone}</span>
               </div>
               <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
             </div>
           </div>
 
-          {/* Bottom 3D Graphics & Secured by Razorpay */}
+          {/* Bottom 3D Isometric Art & Secured by Razorpay */}
           <div className="space-y-3 relative z-10 pt-6">
-            {/* 3D Isometric Art Decoration */}
-            <div className="relative h-20 w-full flex items-center justify-center opacity-90">
-              <div className="w-16 h-12 bg-amber-400/30 rounded-xl transform -rotate-12 border border-amber-300/40 shadow-inner flex items-center justify-center text-xl">
+            
+            {/* 3D Isometric Golden Coin & Card Artwork */}
+            <div className="relative h-20 w-full flex items-center justify-center">
+              <div className="w-20 h-14 bg-gradient-to-tr from-amber-400 to-amber-200 rounded-xl transform -rotate-12 border border-amber-100 shadow-md flex items-center justify-center text-2xl font-bold text-[#8f4100]/60">
                 💳
               </div>
-              <div className="w-14 h-14 bg-amber-500/40 rounded-2xl transform rotate-12 -ml-4 border border-amber-200/40 shadow-lg flex items-center justify-center text-xl">
+              <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-yellow-300 rounded-2xl transform rotate-12 -ml-6 border border-yellow-200 shadow-xl flex items-center justify-center text-2xl">
                 🪙
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 text-[11px] text-white/90 pt-1 border-t border-white/10">
+            {/* Razorpay Footer */}
+            <div className="flex items-center gap-1.5 text-[11px] text-white/90 pt-2 border-t border-white/15">
               <span className="text-white/70">Secured by</span>
               <span className="font-extrabold text-white tracking-wide flex items-center gap-1">
-                <span className="text-blue-300">⚡</span> Razorpay
+                <span className="text-sky-300 font-black italic">⚡ razorpay</span>
               </span>
             </div>
           </div>
         </div>
 
-        {/* RIGHT MAIN PAYMENT SELECTION & FORM BODY */}
+        {/* ======================================================== */}
+        {/* RIGHT MAIN PAYMENT INTERFACE (Method List & Form)        */}
+        {/* ======================================================== */}
         <div className="flex-1 flex flex-col justify-between bg-white relative">
           
-          {/* Top Header */}
+          {/* Top Modal Header */}
           <div className="p-4 px-6 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="font-extrabold text-sm text-[#1a1c1c] tracking-tight">
+            <h3 className="font-bold text-sm text-[#1a1c1c] tracking-tight">
               Payment Options
             </h3>
             <div className="flex items-center gap-2">
@@ -291,110 +345,110 @@ export const RazorpayCheckoutModal: React.FC<RazorpayCheckoutModalProps> = ({
             </div>
           </div>
 
-          {/* Body Columns: Left Category Navigation & Right Input View */}
-          <div className="flex-1 flex flex-col sm:flex-row overflow-hidden">
+          {/* Middle Body: 2 Sub-Columns (Method Categories on Left, Form on Right) */}
+          <div className="flex-1 flex flex-col sm:flex-row overflow-hidden min-h-[360px]">
             
-            {/* Left Category Tabs */}
-            <div className="w-full sm:w-44 bg-[#fdfbf9] border-r border-gray-100 p-2 space-y-1 shrink-0 overflow-y-auto">
+            {/* SUB-COLUMN 1: Method Categories in Warm Beige background */}
+            <div className="w-full sm:w-48 bg-[#fffaf5] border-r border-[#faeae0] p-2 space-y-1 shrink-0 overflow-y-auto">
               
-              {/* Cards Tab */}
+              {/* 1. Cards */}
               <button
                 type="button"
                 onClick={() => setActiveTab('cards')}
                 className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer flex items-center justify-between ${
                   activeTab === 'cards'
-                    ? 'bg-white font-bold text-[#944a00] shadow-xs border border-amber-200/70'
-                    : 'text-gray-600 hover:bg-gray-100/60 font-medium'
+                    ? 'bg-white font-bold text-[#8f4100] shadow-xs border border-amber-200'
+                    : 'text-gray-700 hover:bg-white/60 font-medium'
                 }`}
               >
                 <div className="space-y-0.5">
-                  <div className="text-xs">Cards</div>
-                  <div className="flex items-center gap-1 text-[9px] text-gray-400 font-normal">
+                  <div className="text-xs font-semibold">Cards</div>
+                  <div className="flex items-center gap-1 text-[9px] text-gray-400">
                     <span>💳 Visa, MC, RuPay</span>
                   </div>
                 </div>
               </button>
 
-              {/* UPI Tab */}
-              <button
-                type="button"
-                onClick={() => setActiveTab('upi')}
-                className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer flex items-center justify-between ${
-                  activeTab === 'upi'
-                    ? 'bg-white font-bold text-[#944a00] shadow-xs border border-amber-200/70'
-                    : 'text-gray-600 hover:bg-gray-100/60 font-medium'
-                }`}
-              >
-                <div className="space-y-0.5">
-                  <div className="text-xs">UPI / QR</div>
-                  <div className="flex items-center gap-1 text-[9px] text-gray-400 font-normal">
-                    <span>🟢 GPay, PhonePe</span>
-                  </div>
-                </div>
-              </button>
-
-              {/* Netbanking Tab */}
+              {/* 2. Netbanking */}
               <button
                 type="button"
                 onClick={() => setActiveTab('netbanking')}
                 className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer flex items-center justify-between ${
                   activeTab === 'netbanking'
-                    ? 'bg-white font-bold text-[#944a00] shadow-xs border border-amber-200/70'
-                    : 'text-gray-600 hover:bg-gray-100/60 font-medium'
+                    ? 'bg-white font-bold text-[#8f4100] shadow-xs border border-amber-200'
+                    : 'text-gray-700 hover:bg-white/60 font-medium'
                 }`}
               >
                 <div className="space-y-0.5">
-                  <div className="text-xs">Netbanking</div>
-                  <div className="flex items-center gap-1 text-[9px] text-gray-400 font-normal">
+                  <div className="text-xs font-semibold">Netbanking</div>
+                  <div className="flex items-center gap-1 text-[9px] text-gray-400">
                     <span>🏦 All Indian Banks</span>
                   </div>
                 </div>
               </button>
 
-              {/* Wallet Tab */}
+              {/* 3. Wallet */}
               <button
                 type="button"
                 onClick={() => setActiveTab('wallet')}
                 className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer flex items-center justify-between ${
                   activeTab === 'wallet'
-                    ? 'bg-white font-bold text-[#944a00] shadow-xs border border-amber-200/70'
-                    : 'text-gray-600 hover:bg-gray-100/60 font-medium'
+                    ? 'bg-white font-bold text-[#8f4100] shadow-xs border border-amber-200'
+                    : 'text-gray-700 hover:bg-white/60 font-medium'
                 }`}
               >
                 <div className="space-y-0.5">
-                  <div className="text-xs">Wallet</div>
-                  <div className="flex items-center gap-1 text-[9px] text-gray-400 font-normal">
+                  <div className="text-xs font-semibold">Wallet</div>
+                  <div className="flex items-center gap-1 text-[9px] text-gray-400">
                     <span>👛 Paytm, Mobikwik</span>
                   </div>
                 </div>
               </button>
 
-              {/* Pay on Delivery Tab */}
+              {/* 4. UPI / QR */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('upi')}
+                className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer flex items-center justify-between ${
+                  activeTab === 'upi'
+                    ? 'bg-white font-bold text-[#8f4100] shadow-xs border border-amber-200'
+                    : 'text-gray-700 hover:bg-white/60 font-medium'
+                }`}
+              >
+                <div className="space-y-0.5">
+                  <div className="text-xs font-semibold">UPI / QR</div>
+                  <div className="flex items-center gap-1 text-[9px] text-gray-400">
+                    <span>🟢 GPay, PhonePe</span>
+                  </div>
+                </div>
+              </button>
+
+              {/* 5. Pay on Delivery */}
               <button
                 type="button"
                 onClick={() => setActiveTab('cod')}
                 className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer flex items-center justify-between ${
                   activeTab === 'cod'
-                    ? 'bg-white font-bold text-[#944a00] shadow-xs border border-amber-200/70'
-                    : 'text-gray-600 hover:bg-gray-100/60 font-medium'
+                    ? 'bg-white font-bold text-[#8f4100] shadow-xs border border-amber-200'
+                    : 'text-gray-700 hover:bg-white/60 font-medium'
                 }`}
               >
                 <div className="space-y-0.5">
-                  <div className="text-xs">Pay on Delivery</div>
-                  <div className="flex items-center gap-1 text-[9px] text-gray-400 font-normal">
+                  <div className="text-xs font-semibold">Pay on Delivery</div>
+                  <div className="flex items-center gap-1 text-[9px] text-gray-400">
                     <span>💵 Cash or UPI</span>
                   </div>
                 </div>
               </button>
             </div>
 
-            {/* Right Form & Options View */}
+            {/* SUB-COLUMN 2: Detailed Inputs for Selected Method */}
             <div className="flex-1 p-5 sm:p-6 overflow-y-auto flex flex-col justify-between">
               
-              {/* Processing Overlay inside Right Column */}
-              {isProcessing && (
+              {/* Processing Overlay inside Right Area */}
+              {isProcessing ? (
                 <div className="my-auto py-8 text-center space-y-4 animate-in fade-in duration-150">
-                  <div className="w-12 h-12 border-3 border-[#944a00] border-t-transparent rounded-full animate-spin mx-auto" />
+                  <div className="w-12 h-12 border-3 border-[#8f4100] border-t-transparent rounded-full animate-spin mx-auto" />
                   <div className="space-y-1">
                     <h4 className="font-extrabold text-sm text-[#1a1c1c]">
                       {processingStatus}
@@ -405,37 +459,39 @@ export const RazorpayCheckoutModal: React.FC<RazorpayCheckoutModalProps> = ({
                   </div>
                   <div className="w-48 h-1.5 bg-gray-100 rounded-full mx-auto overflow-hidden">
                     <div
-                      className="h-full bg-[#944a00] transition-all duration-300"
+                      className="h-full bg-[#8f4100] transition-all duration-300"
                       style={{ width: `${progressPercent}%` }}
                     />
                   </div>
                 </div>
-              )}
-
-              {!isProcessing && (
-                <div>
-                  {/* TAB 1: CARDS VIEW */}
+              ) : (
+                <div className="space-y-4">
+                  
+                  {/* ================================================= */}
+                  {/* 1. CARDS TAB VIEW                                 */}
+                  {/* ================================================= */}
                   {activeTab === 'cards' && (
                     <div className="space-y-4 animate-in fade-in duration-150">
-                      <div className="text-xs font-bold text-gray-700">Add a new card</div>
+                      <div className="text-xs font-bold text-gray-800">Add a new card</div>
 
-                      <div className="border border-gray-200 rounded-xl overflow-hidden shadow-2xs focus-within:border-[#944a00] focus-within:ring-1 focus-within:ring-[#944a00]">
+                      {/* Razorpay unified card input box */}
+                      <div className="border border-gray-200 rounded-xl overflow-hidden shadow-2xs focus-within:border-[#8f4100] focus-within:ring-1 focus-within:ring-[#8f4100] transition-all">
                         <input
                           type="text"
                           value={cardNumber}
                           onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
                           placeholder="Card Number"
                           maxLength={19}
-                          className="w-full px-3.5 py-2.5 text-xs text-[#1a1c1c] placeholder-gray-400 focus:outline-hidden border-b border-gray-200"
+                          className="w-full px-3.5 py-2.5 text-xs text-[#1a1c1c] placeholder-gray-400 focus:outline-hidden border-b border-gray-200 font-mono"
                         />
-                        <div className="grid grid-cols-2 divide-x divide-gray-200">
+                        <div className="grid grid-cols-2 divide-x divide-gray-200 bg-white">
                           <input
                             type="text"
                             value={cardExpiry}
                             onChange={(e) => setCardExpiry(formatExpiry(e.target.value))}
                             placeholder="MM / YY"
                             maxLength={5}
-                            className="px-3.5 py-2.5 text-xs text-[#1a1c1c] placeholder-gray-400 focus:outline-hidden"
+                            className="px-3.5 py-2.5 text-xs text-[#1a1c1c] placeholder-gray-400 focus:outline-hidden font-mono"
                           />
                           <input
                             type="password"
@@ -443,17 +499,18 @@ export const RazorpayCheckoutModal: React.FC<RazorpayCheckoutModalProps> = ({
                             onChange={(e) => setCardCvv(e.target.value.replace(/[^0-9]/g, ''))}
                             placeholder="CVV"
                             maxLength={4}
-                            className="px-3.5 py-2.5 text-xs text-[#1a1c1c] placeholder-gray-400 focus:outline-hidden"
+                            className="px-3.5 py-2.5 text-xs text-[#1a1c1c] placeholder-gray-400 focus:outline-hidden font-mono"
                           />
                         </div>
                       </div>
 
+                      {/* Save Card Checkbox */}
                       <label className="flex items-center gap-2 cursor-pointer pt-1">
                         <input
                           type="checkbox"
                           checked={saveCard}
                           onChange={(e) => setSaveCard(e.target.checked)}
-                          className="w-3.5 h-3.5 rounded-sm border-gray-300 text-[#944a00] focus:ring-[#944a00]"
+                          className="w-3.5 h-3.5 rounded-sm border-gray-300 text-[#8f4100] focus:ring-[#8f4100]"
                         />
                         <span className="text-[11px] text-gray-500 font-medium">
                           Save this card as per RBI guidelines
@@ -462,10 +519,126 @@ export const RazorpayCheckoutModal: React.FC<RazorpayCheckoutModalProps> = ({
                     </div>
                   )}
 
-                  {/* TAB 2: UPI / QR VIEW */}
+                  {/* ================================================= */}
+                  {/* 2. NETBANKING TAB VIEW (With Live Bank Search!)   */}
+                  {/* ================================================= */}
+                  {activeTab === 'netbanking' && (
+                    <div className="space-y-3.5 animate-in fade-in duration-150">
+                      
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-bold text-gray-800">Select Bank for Netbanking</div>
+                        <span className="text-[10px] text-gray-500">
+                          {selectedBank.name} selected
+                        </span>
+                      </div>
+
+                      {/* Bank Search Input Bar */}
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={bankSearchQuery}
+                          onChange={(e) => setBankSearchQuery(e.target.value)}
+                          placeholder="Search for your bank (e.g. HDFC, SBI, ICICI...)"
+                          className="w-full bg-[#fbf9f8] border border-gray-200 rounded-xl pl-9 pr-8 py-2 text-xs text-[#1a1c1c] placeholder-gray-400 focus:outline-hidden focus:border-[#8f4100] focus:bg-white transition-colors"
+                        />
+                        {bankSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setBankSearchQuery('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Banks List / Grid */}
+                      <div className="max-h-[170px] overflow-y-auto pr-1 space-y-1.5 scrollbar-thin">
+                        {filteredBanks.length === 0 ? (
+                          <div className="py-6 text-center text-xs text-gray-400">
+                            No banks found matching "{bankSearchQuery}"
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-2">
+                            {filteredBanks.map((bank) => {
+                              const isSelected = selectedBank.code === bank.code;
+                              return (
+                                <button
+                                  key={bank.code}
+                                  type="button"
+                                  onClick={() => setSelectedBank(bank)}
+                                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                                    isSelected
+                                      ? 'bg-[#fff5ee] border-[#8f4100] text-[#8f4100] shadow-xs'
+                                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 truncate">
+                                    <div
+                                      className="w-7 h-7 rounded-lg flex items-center justify-center font-black text-[10px] shrink-0"
+                                      style={{ backgroundColor: bank.bg, color: bank.color }}
+                                    >
+                                      {bank.shortName.slice(0, 3)}
+                                    </div>
+                                    <span className="text-xs font-semibold truncate">
+                                      {bank.name}
+                                    </span>
+                                  </div>
+                                  {isSelected && (
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-[#8f4100] shrink-0" />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ================================================= */}
+                  {/* 3. WALLET TAB VIEW                                */}
+                  {/* ================================================= */}
+                  {activeTab === 'wallet' && (
+                    <div className="space-y-3 animate-in fade-in duration-150">
+                      <div className="text-xs font-bold text-gray-800">Select Wallet</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { id: 'Paytm', name: 'Paytm Wallet', icon: '🔵' },
+                          { id: 'PhonePe', name: 'PhonePe Wallet', icon: '🟣' },
+                          { id: 'Mobikwik', name: 'Mobikwik', icon: '🔴' },
+                          { id: 'AmazonPay', name: 'Amazon Pay', icon: '🟠' },
+                        ].map((w) => (
+                          <button
+                            key={w.id}
+                            type="button"
+                            onClick={() => setSelectedWallet(w.name)}
+                            className={`p-3 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-between ${
+                              selectedWallet === w.name
+                                ? 'bg-[#fff5ee] border-[#8f4100] text-[#8f4100]'
+                                : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span>{w.icon}</span>
+                              <span>{w.name}</span>
+                            </div>
+                            {selectedWallet === w.name && (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-[#8f4100]" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ================================================= */}
+                  {/* 4. UPI / QR TAB VIEW                              */}
+                  {/* ================================================= */}
                   {activeTab === 'upi' && (
-                    <div className="space-y-4 animate-in fade-in duration-150">
-                      <div className="text-xs font-bold text-gray-700">Choose a UPI App or Scan QR</div>
+                    <div className="space-y-3.5 animate-in fade-in duration-150">
+                      <div className="text-xs font-bold text-gray-800">Pay via UPI App or QR Code</div>
 
                       <div className="grid grid-cols-2 gap-2">
                         {[
@@ -481,106 +654,61 @@ export const RazorpayCheckoutModal: React.FC<RazorpayCheckoutModalProps> = ({
                               setSelectedUpiApp(app.id as any);
                               setShowQrCode(false);
                             }}
-                            className={`p-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                            className={`p-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-between ${
                               selectedUpiApp === app.id && !showQrCode
-                                ? 'bg-amber-50/80 border-[#944a00] text-[#944a00]'
+                                ? 'bg-[#fff5ee] border-[#8f4100] text-[#8f4100]'
                                 : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
                             }`}
                           >
-                            <span>{app.icon}</span>
-                            <span>{app.name}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span>{app.icon}</span>
+                              <span>{app.name}</span>
+                            </div>
+                            {selectedUpiApp === app.id && !showQrCode && (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-[#8f4100]" />
+                            )}
                           </button>
                         ))}
                       </div>
 
-                      {/* Custom UPI ID input */}
-                      <div className="space-y-1.5 pt-1">
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={customUpiId}
-                            onChange={(e) => {
-                              setCustomUpiId(e.target.value);
-                              setShowQrCode(false);
-                            }}
-                            placeholder="Enter UPI ID (e.g. mobile@upi)"
-                            className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs text-[#1a1c1c] focus:outline-hidden focus:border-[#944a00]"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowQrCode(!showQrCode)}
-                            className="px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-xs font-bold text-[#944a00] rounded-xl flex items-center gap-1 cursor-pointer"
-                          >
-                            <QrCode className="w-3.5 h-3.5" />
-                            <span>{showQrCode ? 'Hide QR' : 'Show QR'}</span>
-                          </button>
-                        </div>
+                      {/* Custom UPI ID and QR Button */}
+                      <div className="flex gap-2 pt-1">
+                        <input
+                          type="text"
+                          value={customUpiId}
+                          onChange={(e) => {
+                            setCustomUpiId(e.target.value);
+                            setShowQrCode(false);
+                          }}
+                          placeholder="Enter UPI ID (e.g. mobile@okhdfcbank)"
+                          className="flex-1 bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs text-[#1a1c1c] focus:outline-hidden focus:border-[#8f4100]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowQrCode(!showQrCode)}
+                          className="px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-xs font-bold text-[#8f4100] rounded-xl flex items-center gap-1 cursor-pointer"
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
+                          <span>{showQrCode ? 'Hide QR' : 'Scan QR'}</span>
+                        </button>
                       </div>
 
                       {showQrCode && (
-                        <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex flex-col items-center text-center space-y-1.5">
+                        <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 flex flex-col items-center text-center space-y-1">
                           <img
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=upi://pay?pa=mealmitra@razorpay&pn=MealMitra&am=${amount}&cu=INR`}
-                            alt="UPI Payment QR"
-                            className="w-24 h-24 rounded-lg border border-gray-200 bg-white p-1"
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=upi://pay?pa=mealmitra@razorpay&pn=MealMitra&am=${amount}&cu=INR`}
+                            alt="UPI QR"
+                            className="w-20 h-20 rounded-lg border border-gray-200 bg-white p-1 shadow-2xs"
                           />
-                          <p className="text-[10px] text-gray-500">
-                            Scan with any UPI App on your phone
-                          </p>
+                          <p className="text-[10px] text-gray-500">Scan with any UPI app</p>
                         </div>
                       )}
                     </div>
                   )}
 
-                  {/* TAB 3: NETBANKING VIEW */}
-                  {activeTab === 'netbanking' && (
-                    <div className="space-y-3 animate-in fade-in duration-150">
-                      <div className="text-xs font-bold text-gray-700">Select your Bank</div>
-                      <div className="grid grid-cols-3 gap-2">
-                        {['HDFC', 'SBI', 'ICICI', 'Axis', 'Kotak', 'BOB'].map((bank) => (
-                          <button
-                            key={bank}
-                            type="button"
-                            onClick={() => setSelectedBank(bank)}
-                            className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                              selectedBank === bank
-                                ? 'bg-amber-50/80 border-[#944a00] text-[#944a00]'
-                                : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                            }`}
-                          >
-                            <Landmark className="w-4 h-4 text-gray-600" />
-                            <span>{bank}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* TAB 4: WALLET VIEW */}
-                  {activeTab === 'wallet' && (
-                    <div className="space-y-3 animate-in fade-in duration-150">
-                      <div className="text-xs font-bold text-gray-700">Select Wallet</div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {['Paytm Wallet', 'PhonePe Wallet', 'Mobikwik', 'Amazon Pay'].map((wallet) => (
-                          <button
-                            key={wallet}
-                            type="button"
-                            onClick={() => setSelectedWallet(wallet)}
-                            className={`p-3 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
-                              selectedWallet === wallet
-                                ? 'bg-amber-50/80 border-[#944a00] text-[#944a00]'
-                                : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                            }`}
-                          >
-                            <Wallet className="w-4 h-4 text-gray-600" />
-                            <span>{wallet}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* TAB 5: PAY ON DELIVERY (COD) VIEW */}
+                  {/* ================================================= */}
+                  {/* 5. PAY ON DELIVERY (COD) VIEW                     */}
+                  {/* ================================================= */}
                   {activeTab === 'cod' && (
                     <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-200 space-y-2 animate-in fade-in duration-150">
                       <div className="flex items-center gap-2 text-xs font-bold text-emerald-800">
@@ -596,18 +724,18 @@ export const RazorpayCheckoutModal: React.FC<RazorpayCheckoutModalProps> = ({
               )}
 
               {/* Bottom Action Button (Dark / Charcoal Button as shown in screenshot) */}
-              <div className="pt-4 space-y-2">
+              <div className="pt-4">
                 <button
                   type="button"
                   onClick={handlePay}
                   disabled={isProcessing}
-                  className="w-full py-3.5 bg-[#1a1412] hover:bg-[#2d221e] active:scale-[0.99] disabled:bg-gray-400 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+                  className="w-full py-3.5 bg-[#171311] hover:bg-[#2c2420] active:scale-[0.99] disabled:bg-gray-400 text-white font-bold text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
                   <Lock className="w-3.5 h-3.5 text-white/80" />
                   <span>
                     {activeTab === 'cod'
                       ? 'Confirm Booking (Pay on Delivery)'
-                      : `Continue • Pay ₹${amount}`}
+                      : 'Continue'}
                   </span>
                 </button>
               </div>
@@ -623,3 +751,4 @@ export const RazorpayCheckoutModal: React.FC<RazorpayCheckoutModalProps> = ({
     </div>
   );
 };
+
