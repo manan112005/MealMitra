@@ -665,7 +665,7 @@ export const EntryScreen: React.FC = () => {
                                 type="button"
                                 onClick={() => handleQuickFillLogin('9825123456')}
                                 className="px-2 py-1 rounded-md bg-[#ffdcc5]/50 hover:bg-[#ffdcc5] text-[#944a00] text-[10px] font-bold border border-[#944a00]/20 transition-colors"
-                                title="Customer: Jay Shah"
+                                title="Customer: MANAN PATEL"
                               >
                                 👤 Customer (9825123456)
                               </button>

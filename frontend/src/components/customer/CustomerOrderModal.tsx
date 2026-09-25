@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { Meal } from '../../types';
 import { paymentService } from '../../services/payment.service';
 import {
@@ -28,8 +29,13 @@ interface Props {
 
 export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
   const { placeOrder, joinWaitlist, setCustomerTab, cooks } = useApp();
+  const { currentUser } = useAuth();
 
   const cook = cooks.find((c) => c.id === meal.cookId) || cooks[0];
+
+  const realCustomerName = currentUser?.name || currentUser?.applicationDetails?.name || 'Customer';
+  const realCustomerPhone = currentUser?.phone || '+91 98251 23456';
+  const realCustomerAddress = currentUser?.applicationDetails?.address || 'Flat 402, Shivalik Residency, Navrangpura, Ahmedabad';
 
   // Reservation state
   const [bookingDate, setBookingDate] = useState<'Today' | 'Tomorrow' | string>('Today');
@@ -38,8 +44,8 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
   );
   const [fulfillmentType, setFulfillmentType] = useState<'Delivery' | 'Pickup'>('Delivery');
   const [quantity, setQuantity] = useState(1);
-  const [address, setAddress] = useState('Flat 402, Shivalik Heights, Judges Bungalow Rd, Bodakdev');
-  const [phone, setPhone] = useState('+91 99250 12345');
+  const [address, setAddress] = useState(realCustomerAddress);
+  const [phone, setPhone] = useState(realCustomerPhone);
   const [timeSlot, setTimeSlot] = useState(
     mealPeriod === 'Dinner' ? '8:00 PM - 8:30 PM' : '1:00 PM - 1:30 PM'
   );
@@ -86,8 +92,8 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
         cookName: cook.name,
         mealId: meal.id,
         mealName: meal.name,
-        customerName: 'Jay Shah',
-        customerPhone: phone,
+        customerName: realCustomerName,
+        customerPhone: phone || realCustomerPhone,
         date: bookingDate,
         mealPeriod,
       });
@@ -111,8 +117,8 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
         name: 'MealMitra Tiffin Reservation',
         description: `Tiffin Slot: ${meal.name} (${mealPeriod})`,
         prefill: {
-          name: 'Customer',
-          contact: phone,
+          name: realCustomerName,
+          contact: phone || realCustomerPhone,
         },
         orderData: {
           mealId: meal.id,

@@ -348,7 +348,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('mealmitra_orders');
       if (saved) {
         const parsed = JSON.parse(saved);
-        return parsed.filter((o: Order) => !['cook-1', 'cook-2', 'cook-3', 'cook-4', 'cook-5'].includes(o.cookId));
+        return parsed.filter(
+          (o: Order) =>
+            !['cook-1', 'cook-2', 'cook-3', 'cook-4', 'cook-5'].includes(o.cookId) &&
+            o.customerName !== 'Jay Shah'
+        );
       }
     } catch {}
     return [];
@@ -408,13 +412,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [deliveryAssignments, setDeliveryAssignments] = useState<DeliveryAssignment[]>(() => {
-    const saved = localStorage.getItem('mealmitra_delivery_assignments');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('mealmitra_delivery_assignments');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.filter(
+          (d: DeliveryAssignment) =>
+            !['cook-1', 'cook-2', 'cook-3', 'cook-4', 'cook-5'].includes(d.cookId) &&
+            d.customerName !== 'Jay Shah'
+        );
+      }
+    } catch {}
+    return [];
   });
 
   const [clusterStops, setClusterStops] = useState<ClusterRouteStop[]>(() => {
-    const saved = localStorage.getItem('mealmitra_cluster_stops');
-    return saved ? JSON.parse(saved) : MOCK_SMART_CLUSTER_STOPS;
+    try {
+      const saved = localStorage.getItem('mealmitra_cluster_stops');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.filter((c: ClusterRouteStop) => !c.title?.includes('Jay Shah'));
+      }
+    } catch {}
+    return [];
   });
 
   const [deliveryPartnerState, setDeliveryPartnerState] = useState<DeliveryPartnerState>(() => {
@@ -423,8 +443,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [routeStops, setRouteStops] = useState<RouteStop[]>(() => {
-    const saved = localStorage.getItem('mealmitra_route_stops');
-    return saved ? JSON.parse(saved) : MOCK_ROUTE_STOPS;
+    try {
+      const saved = localStorage.getItem('mealmitra_route_stops');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.filter((r: RouteStop) => r.targetName !== 'Jay Shah');
+      }
+    } catch {}
+    return [];
   });
 
   const [waitlist, setWaitlist] = useState<WaitlistEntry[]>(() => {
@@ -606,16 +632,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const chosenPeriod = orderData.mealPeriod || (orderData.meal.category === 'Dinner' ? 'Dinner' : 'Lunch');
     const chosenDate = orderData.bookingDate || 'Today';
 
+    const currentCustomerName = currentUser?.name || currentUser?.applicationDetails?.name || 'Customer';
+    const currentCustomerPhone = orderData.phone || currentUser?.phone || '+91 98251 23456';
+    const currentCustomerAddress = isPickup
+      ? `${orderData.meal.cookName}'s Kitchen (Self Pickup)`
+      : (orderData.address || currentUser?.applicationDetails?.address || 'Flat 402, Shivalik Residency, Navrangpura');
+
     const newOrder: Order = {
       id: newOrderId,
       cookId: orderData.meal.cookId,
       cookName: orderData.meal.cookName,
       cookAvatar: orderData.meal.cookAvatar,
-      customerName: 'Jay Shah',
-      customerPhone: orderData.phone || '+91 99250 12345',
-      customerAddress: isPickup
-        ? `${orderData.meal.cookName}'s Kitchen (Self Pickup)`
-        : orderData.address || 'Flat 402, Shivalik Heights, Bodakdev',
+      customerName: currentCustomerName,
+      customerPhone: currentCustomerPhone,
+      customerAddress: currentCustomerAddress,
       mealId: orderData.meal.id,
       mealName: orderData.meal.name,
       mealImage: orderData.meal.image,
