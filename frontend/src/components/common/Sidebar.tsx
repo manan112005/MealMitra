@@ -60,6 +60,7 @@ export const Sidebar: React.FC = () => {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'discover', label: 'Discover Cooks', icon: Compass },
     { id: 'meals', label: "Today's Meals", icon: Utensils },
+    { id: 'subscriptions', label: 'Tiffin Plans', icon: Repeat },
     { id: 'orders', label: 'Orders & Tracking', icon: ShoppingBag },
     { id: 'following', label: 'Following', icon: Heart },
     { id: 'profile', label: 'My Profile', icon: User },
@@ -71,6 +72,7 @@ export const Sidebar: React.FC = () => {
     { id: 'profile', label: 'My Business Profile', icon: ChefHat },
     { id: 'kitchen', label: "Today's Kitchen", icon: Flame },
     { id: 'menu', label: 'Weekly Menu Manager', icon: BookOpen },
+    { id: 'subscriptions', label: 'Subscription Plans', icon: Repeat },
     { id: 'orders', label: 'Order Processing', icon: ShoppingBag },
     { id: 'customers', label: 'Subscribers & Customers', icon: Users },
     { id: 'earnings', label: 'Earnings & Payouts', icon: Wallet },
@@ -109,12 +111,17 @@ export const Sidebar: React.FC = () => {
         {role === 'customer' && (
           <div className="flex items-center gap-3">
             <img
-              src={currentUser?.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80"}
-              alt={currentUser?.name || "Jay Shah"}
-              className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm"
+              src={
+                currentUser?.avatar ||
+                `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><rect width="100%" height="100%" fill="%23ffdcc5"/><text x="50%" y="54%" font-size="44" font-weight="bold" fill="%23944a00" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif">${encodeURIComponent(
+                  (currentUser?.name || 'Customer').trim().charAt(0).toUpperCase()
+                )}</text></svg>`
+              }
+              alt={currentUser?.name || "Customer"}
+              className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm shrink-0"
             />
             <div className="overflow-hidden">
-              <p className="text-xs font-bold text-[#1a1c1c] truncate">Welcome, {currentUser?.name || 'Jay Shah'}</p>
+              <p className="text-xs font-bold text-[#1a1c1c] truncate">Welcome, {currentUser?.name || 'Customer'}</p>
               <p className="text-[11px] text-[#564337] flex items-center gap-1 font-medium">
                 <span className="w-2 h-2 rounded-full bg-[#51634c]"></span> Customer Role
               </p>
@@ -126,13 +133,18 @@ export const Sidebar: React.FC = () => {
           <div className="flex items-center gap-3">
             <img
               src={currentUser?.avatar || currentCookProfile.avatar}
-              alt={currentUser?.name || currentCookProfile.name}
-              className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm"
+              alt={currentCookProfile.chefName || currentUser?.name || currentCookProfile.name}
+              className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm shrink-0"
             />
             <div className="overflow-hidden">
-              <p className="text-xs font-bold text-[#1a1c1c] truncate">{currentUser?.name || currentCookProfile.name}</p>
-              <p className="text-[11px] text-[#944a00] font-medium flex items-center gap-1">
-                <span className={`w-2 h-2 rounded-full ${currentCookProfile.kitchenOpen ? 'bg-green-500' : 'bg-red-400'}`}></span>
+              <p className="text-xs font-bold text-[#1a1c1c] truncate">
+                {currentCookProfile.name || currentUser?.applicationDetails?.kitchenName || 'Home Kitchen'}
+              </p>
+              <p className="text-[10px] text-[#944a00] font-semibold truncate">
+                Chef {currentUser?.name || currentCookProfile.chefName || 'Home Cook'}
+              </p>
+              <p className="text-[10px] text-[#564337] font-medium flex items-center gap-1 mt-0.5">
+                <span className={`w-1.5 h-1.5 rounded-full ${currentCookProfile.kitchenOpen ? 'bg-green-500' : 'bg-red-400'}`}></span>
                 {currentCookProfile.kitchenOpen ? 'Kitchen Open' : 'Kitchen Closed'}
               </p>
             </div>
@@ -144,7 +156,7 @@ export const Sidebar: React.FC = () => {
             <img
               src={currentUser?.avatar || "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80"}
               alt={currentUser?.name || "Ramesh Patel"}
-              className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm"
+              className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm shrink-0"
             />
             <div className="overflow-hidden">
               <p className="text-xs font-bold text-[#1a1c1c] truncate">{currentUser?.name || 'Ramesh Patel'}</p>

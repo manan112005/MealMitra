@@ -1,0 +1,186 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  CUSTOMER
+  CHEF
+  DELIVERY
+  ADMIN
+}
+
+enum ChefApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum DeliveryApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  fullName     String
+  email        String   @unique
+  phone        String?  @unique
+  passwordHash String
+  role         Role     @default(CUSTOMER)
+  isActive     Boolean  @default(true)
+  isVerified   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  customerProfile     CustomerProfile?
+  chefProfile         ChefProfile?
+  deliveryProfile     DeliveryPartnerProfile?
+  addresses           Address[]
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+
+  @@index([email])
+  @@index([phone])
+  @@index([role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  isRevoked Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  isUsed    Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("password_reset_tokens")
+}
+
+model CustomerProfile {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  dietaryPreferences String?
+  loyaltyPoints      Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("customer_profiles")
+}
+
+model ChefProfile {
+  id              String             @id @default(uuid())
+  userId          String             @unique
+  bio             String?
+  cuisine         String?
+  foodType        String             @default("BOTH")
+  experienceYears Int                @default(0)
+  approvalStatus  ChefApprovalStatus @default(PENDING)
+  rating          Float              @default(0.0)
+  ratingCount     Int                @default(0)
+  profileImage    String?
+  fssaiLicense    String?
+  isAvailable     Boolean            @default(true)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kitchen Kitchen?
+
+  @@index([approvalStatus])
+  @@map("chef_profiles")
+}
+
+model DeliveryPartnerProfile {
+  id               String                 @id @default(uuid())
+  userId           String                 @unique
+  vehicleType      String?
+  vehicleNumber    String?
+  licenseNumber    String?
+  approvalStatus   DeliveryApprovalStatus @default(PENDING)
+  isOnline         Boolean                @default(false)
+  currentLatitude  Float?
+  currentLongitude Float?
+  rating           Float                  @default(0.0)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([approvalStatus])
+  @@map("delivery_partner_profiles")
+}
+
+model Kitchen {
+  id            String   @id @default(uuid())
+  chefId        String   @unique
+  name          String
+  description   String?
+  address       String?
+  latitude      Float?
+  longitude     Float?
+  status        String   @default("OPEN")
+  serviceRadius Float    @default(5.0)
+  minimumOrder  Float    @default(0.0)
+  profileImage  String?
+  bannerImage   String?
+  openingTime   String?
+  closingTime   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  chef ChefProfile @relation(fields: [chefId], references: [id], onDelete: Cascade)
+
+  @@map("kitchens")
+}
+
+model Address {
+  id           String   @id @default(uuid())
+  userId       String
+  label        String   @default("HOME")
+  addressLine1 String
+  addressLine2 String?
+  city         String
+  state        String
+  postalCode   String
+  latitude     Float?
+  longitude    Float?
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([city])
+  @@map("addresses")
+}

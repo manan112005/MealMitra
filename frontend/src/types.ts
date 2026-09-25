@@ -12,6 +12,7 @@ export type CustomerTab =
   | 'dashboard'
   | 'discover'
   | 'meals'
+  | 'subscriptions'
   | 'orders'
   | 'following'
   | 'reviews'
@@ -22,6 +23,7 @@ export type CookTab =
   | 'profile'
   | 'kitchen'
   | 'menu'
+  | 'subscriptions'
   | 'orders'
   | 'customers'
   | 'earnings';
@@ -69,6 +71,8 @@ export interface Meal {
   deliveryEstimateMin: number;
   distanceKm: number;
   isPopular?: boolean;
+  isSpecial?: boolean;
+  period?: string;
   lunchCutoffTime?: string;
   dinnerCutoffTime?: string;
   spiceLevel?: 'Mild' | 'Medium' | 'Spicy';
@@ -100,10 +104,10 @@ export interface DayMenuSchedule {
   dinner: MealSlotItem;
 }
 
-
 export interface CookProfile {
   id: string;
-  name: string;
+  name: string; // Kitchen / Brand Name (e.g. Magic mom)
+  chefName?: string; // Chef Personal Name (e.g. Nilam Patel)
   avatar: string;
   coverImage?: string;
   bio: string;
@@ -124,6 +128,7 @@ export interface CookProfile {
   dinnerTotalQty: number;
   specialties: string[];
   weeklyMenu: DayMenuSchedule[];
+  subscriptionPlans?: SubscriptionPlan[];
   hygieneRating: string;
   lunchCutoffTime?: string;
   dinnerCutoffTime?: string;
@@ -167,13 +172,18 @@ export interface Order {
 
 export interface SubscriptionPlan {
   id: string;
-  type: 'Monthly' | 'Yearly';
+  cookId?: string;
+  cookName?: string;
+  type: 'Monthly' | '15 Days' | 'Weekly' | 'Yearly';
   name: string;
-  category: 'Lunch Only' | 'Dinner Only' | 'Lunch + Dinner' | 'Family Plan' | 'Corporate Plan';
+  category: 'Lunch Only' | 'Dinner Only' | 'Lunch + Dinner' | 'Family Plan' | 'Corporate Plan' | 'Custom';
   price: number;
   billingPeriod: string;
   description: string;
   features: string[];
+  terms?: string[];
+  deliveryTimeWindow?: string;
+  mealsCount?: number;
   isPopular?: boolean;
 }
 
@@ -204,11 +214,19 @@ export interface WaitlistEntry {
 
 export interface UserSubscription {
   id: string;
+  customerId?: string;
+  customerName: string;
+  customerPhone: string;
+  customerAvatar?: string;
   planId: string;
   planName: string;
   planCategory: string;
+  planPeriod?: 'Monthly' | '15 Days' | 'Weekly' | 'Yearly';
+  planPrice?: number;
+  paymentMethod?: string;
+  cookId?: string;
   cookName: string;
-  cookAvatar: string;
+  cookAvatar?: string;
   status: 'Active' | 'Paused' | 'Expired';
   startDate: string;
   renewalDate: string;
@@ -219,7 +237,8 @@ export interface UserSubscription {
   dinnerTiming: string;
   mealsDeliveredCount: number;
   totalMealsCount: number;
-  preferredMeals: string[];
+  preferredMeals?: string[];
+  dietaryNotes?: string;
   upcomingMeals?: UpcomingMealSlot[];
 }
 
@@ -292,5 +311,14 @@ export interface DeliveryPartnerState {
   todayDeliveries: number;
   todayEarnings: number;
   rating: number;
+}
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  time: string;
+  type: 'order' | 'kitchen' | 'delivery' | 'system' | 'subscription';
+  read: boolean;
 }
 

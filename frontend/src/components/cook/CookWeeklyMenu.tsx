@@ -20,7 +20,9 @@ import {
   AlertCircle,
   ShieldCheck,
   Flame,
+  ArrowLeft,
 } from 'lucide-react';
+
 
 const DAYS_OF_WEEK = [
   'Monday',
@@ -968,21 +970,33 @@ export const CookWeeklyMenu: React.FC = () => {
           <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200 border border-[#dcc1b1]/50 overflow-hidden my-auto">
             {/* Modal Header */}
             <div className="bg-[#faf9f8] px-6 py-4 border-b border-[#dcc1b1]/50 flex justify-between items-center shrink-0">
-              <div>
-                <h3 className="text-lg font-extrabold text-[#1a1c1c] flex items-center gap-2">
-                  <Utensils
-                    className={`w-5 h-5 ${
-                      mealType === 'lunch' ? 'text-[#944a00]' : 'text-[#51634c]'
-                    }`}
-                  />
-                  <span>
-                    {modalMode === 'add' ? 'Add' : 'Edit'} {targetSlotDay}{' '}
-                    {mealType === 'lunch' ? 'Lunch' : 'Dinner'}
-                  </span>
-                </h3>
-                <p className="text-xs text-[#564337]">
-                  Assemble complete meal components for daily & tiffin subscribers.
-                </p>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="p-1 px-2.5 rounded-xl text-[#564337] hover:text-[#1a1c1c] hover:bg-white border border-[#dcc1b1]/60 flex items-center gap-1.5 text-xs font-bold transition-all shadow-2xs"
+                  title="Back"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Back</span>
+                </button>
+                <div className="h-5 w-px bg-[#dcc1b1]/60 hidden sm:block" />
+                <div>
+                  <h3 className="text-lg font-extrabold text-[#1a1c1c] flex items-center gap-2">
+                    <Utensils
+                      className={`w-5 h-5 ${
+                        mealType === 'lunch' ? 'text-[#944a00]' : 'text-[#51634c]'
+                      }`}
+                    />
+                    <span>
+                      {modalMode === 'add' ? 'Add' : 'Edit'} {targetSlotDay}{' '}
+                      {mealType === 'lunch' ? 'Lunch' : 'Dinner'}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-[#564337]">
+                    Assemble complete meal components for daily & tiffin subscribers.
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
@@ -992,6 +1006,7 @@ export const CookWeeklyMenu: React.FC = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
 
             {/* Modal Scrollable Body */}
             <form
@@ -1452,9 +1467,10 @@ export const CookWeeklyMenu: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-3 text-xs font-bold text-[#564337] bg-[#faf9f8] hover:bg-[#eeeeed] border border-[#dcc1b1] rounded-xl transition-colors"
+                  className="px-5 py-3 text-xs font-bold text-[#564337] bg-[#faf9f8] hover:bg-[#eeeeed] border border-[#dcc1b1] rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
                 >
-                  Cancel
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Back</span>
                 </button>
                 <button
                   type="submit"
@@ -1464,6 +1480,7 @@ export const CookWeeklyMenu: React.FC = () => {
                   <span>Save Meal to Schedule</span>
                 </button>
               </div>
+
             </form>
           </div>
         </div>

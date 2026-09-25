@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { MOCK_COOKS } from '../../data/mockData';
 import {
   Star,
@@ -28,6 +29,7 @@ interface Props {
 
 export const CustomerCookProfile: React.FC<Props> = ({ cookId, onBack }) => {
   const { cooks, meals, reviews, addReview, toggleFollowCook, setSelectedMealForOrder } = useApp();
+  const { user } = useAuth();
   const [selectedDay, setSelectedDay] = useState<string>('Monday');
 
   // Review Form state
@@ -47,14 +49,16 @@ export const CustomerCookProfile: React.FC<Props> = ({ cookId, onBack }) => {
     e.preventDefault();
     if (!newComment.trim() || !cook) return;
     addReview({
-      customerName: 'Jay Shah',
-      customerAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
+      customerName: user?.name || 'MANAN PATEL',
+      customerAvatar: user?.avatar || '',
       cookId: cook.id,
       cookName: cook.name,
       mealName: selectedMealName || cookMeals[0]?.name || 'Homestyle Tiffin Meal',
+      dishName: selectedMealName || cookMeals[0]?.name || 'Homestyle Tiffin Meal',
       rating: newRating,
       comment: newComment.trim(),
     });
+
     setReviewSubmitted(true);
     setTimeout(() => {
       setReviewSubmitted(false);
@@ -124,6 +128,9 @@ export const CustomerCookProfile: React.FC<Props> = ({ cookId, onBack }) => {
                   <span className="p-1 rounded-full bg-[#d1e6c9] text-[#51634c]" title="Verified Home Cook">
                     <ShieldCheck className="w-4 h-4" />
                   </span>
+                </div>
+                <div className="text-xs font-bold text-[#944a00]">
+                  Chef: {cook.chefName || 'Home Cook'}
                 </div>
                 <div className="flex items-center gap-2 text-xs text-[#564337] flex-wrap">
                   <span className="flex items-center gap-1 font-bold text-[#944a00]">

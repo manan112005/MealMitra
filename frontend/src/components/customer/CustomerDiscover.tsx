@@ -7,12 +7,13 @@ import {
   Star,
   Heart,
   Utensils,
-  Clock,
-  Sparkles,
   ChevronRight,
   ShieldCheck,
+  CheckCircle2,
+  X,
 } from 'lucide-react';
 import { CustomerCookProfile } from './CustomerCookProfile';
+
 export const CustomerDiscover: React.FC = () => {
   const { cooks, selectedCookId, setSelectedCookId, toggleFollowCook } = useApp();
 
@@ -22,16 +23,18 @@ export const CustomerDiscover: React.FC = () => {
   const [selectedRating, setSelectedRating] = useState('All');
   const [selectedDistance, setSelectedDistance] = useState('All');
   const [onlyOpenKitchens, setOnlyOpenKitchens] = useState(false);
+  const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
 
   const cuisinesList = [
     'All',
     'Gujarati',
     'North Indian',
     'Punjabi',
-    'Mediterranean',
-    'High Protein',
+    'South Indian',
+    'Kathiyawadi',
+    'Healthy / Keto',
     'Vegan',
-    'Comfort Soups',
+    'Jain',
   ];
 
   const locationsList = [
@@ -41,23 +44,25 @@ export const CustomerDiscover: React.FC = () => {
     'Satellite Road',
     'Vastrapur',
     'Prahlad Nagar',
+    'Thaltej',
+    'SG Highway',
   ];
 
   const filteredCooks = useMemo(() => {
-    return cooks.filter((cook) => {
+    return (cooks || []).filter((cook) => {
       // Search
       const matchesSearch =
         cook.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        cook.cuisine.some((c) => c.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        cook.specialties.some((s) => s.toLowerCase().includes(searchQuery.toLowerCase()));
+        (cook.cuisine && cook.cuisine.some((c) => c.toLowerCase().includes(searchQuery.toLowerCase()))) ||
+        (cook.specialties && cook.specialties.some((s) => s.toLowerCase().includes(searchQuery.toLowerCase())));
 
       // Location
       const matchesLocation =
-        selectedLocation === 'All Areas' || cook.location.includes(selectedLocation);
+        selectedLocation === 'All Areas' || (cook.location && cook.location.includes(selectedLocation));
 
       // Cuisine
       const matchesCuisine =
-        selectedCuisine === 'All' || cook.cuisine.includes(selectedCuisine);
+        selectedCuisine === 'All' || (cook.cuisine && cook.cuisine.includes(selectedCuisine));
 
       // Rating
       const matchesRating =
@@ -68,8 +73,8 @@ export const CustomerDiscover: React.FC = () => {
       // Distance
       const matchesDistance =
         selectedDistance === 'All' ||
-        (selectedDistance === '< 2 km' && cook.distanceKm <= 2) ||
-        (selectedDistance === '< 5 km' && cook.distanceKm <= 5);
+        (selectedDistance === '< 2 km' && (cook.distanceKm || 0) <= 2) ||
+        (selectedDistance === '< 5 km' && (cook.distanceKm || 0) <= 5);
 
       // Kitchen Open Only
       const matchesOpen = !onlyOpenKitchens || cook.kitchenOpen;
@@ -92,6 +97,22 @@ export const CustomerDiscover: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
+      {/* Toast Notification */}
+      {notificationMsg && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl flex items-center justify-between shadow-sm animate-in fade-in duration-150">
+          <div className="flex items-center gap-2.5 text-xs font-semibold">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{notificationMsg}</span>
+          </div>
+          <button
+            onClick={() => setNotificationMsg(null)}
+            className="text-emerald-700 hover:text-emerald-900 text-xs font-bold"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div>
         <h2 className="text-2xl font-extrabold text-[#1a1c1c] tracking-tight">
@@ -186,7 +207,7 @@ export const CustomerDiscover: React.FC = () => {
         {filteredCooks.map((cook) => (
           <div
             key={cook.id}
-            className="bg-white rounded-2xl border border-[#dcc1b1]/60 shadow-[0_4px_20px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col justify-between hover:shadow-md transition-all group"
+            className="bg-white rounded-2xl border border-[#dcc1b1]/60 shadow-[0_4px_20px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col justify-between hover:shadow-md transition-all group relative"
           >
             <div className="p-5 space-y-4">
               {/* Cook Header */}
@@ -204,6 +225,9 @@ export const CustomerDiscover: React.FC = () => {
                       </h3>
                       <ShieldCheck className="w-4 h-4 text-[#51634c]" title="FSSAI Hygiene Verified" />
                     </div>
+                    <div className="text-[11px] font-bold text-[#944a00]">
+                      Chef: {cook.chefName || 'Home Cook'}
+                    </div>
 
                     <div className="flex items-center text-xs text-[#564337] mt-0.5 gap-2">
                       <span className="flex items-center text-[#944a00] font-bold">
@@ -211,26 +235,28 @@ export const CustomerDiscover: React.FC = () => {
                         {cook.rating} ({cook.reviewsCount})
                       </span>
                       <span>•</span>
-                      <span>{cook.experienceYears} yrs experience</span>
+                      <span>{cook.experienceYears || 4} yrs experience</span>
                     </div>
 
                     <div className="flex items-center gap-1 text-[11px] text-[#564337] mt-1">
                       <MapPin className="w-3 h-3 text-[#944a00]" />
-                      <span>{cook.location} • {cook.distanceKm} km away</span>
+                      <span>{cook.location} • {cook.distanceKm || 1.2} km away</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Open / Closed Badge */}
-                <span
-                  className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shrink-0 ${
-                    cook.kitchenOpen
-                      ? 'bg-[#d1e6c9] text-[#51634c]'
-                      : 'bg-red-100 text-red-700'
-                  }`}
-                >
-                  {cook.kitchenOpen ? 'Kitchen Open' : 'Kitchen Closed — Sold Out'}
-                </span>
+                <div className="flex flex-col items-end">
+                  <span
+                    className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shrink-0 ${
+                      cook.kitchenOpen
+                        ? 'bg-[#d1e6c9] text-[#51634c]'
+                        : 'bg-red-100 text-red-700'
+                    }`}
+                  >
+                    {cook.kitchenOpen ? 'Kitchen Open' : 'Kitchen Closed'}
+                  </span>
+                </div>
               </div>
 
               {/* Bio snippet & Specialties */}
@@ -249,7 +275,7 @@ export const CustomerDiscover: React.FC = () => {
                     <div
                       className="bg-[#944a00] h-full rounded-full"
                       style={{
-                        width: `${((cook.lunchTotalQty - cook.lunchAvailableQty) / cook.lunchTotalQty) * 100}%`,
+                        width: `${((cook.lunchTotalQty - cook.lunchAvailableQty) / (cook.lunchTotalQty || 1)) * 100}%`,
                       }}
                     />
                   </div>
@@ -264,7 +290,7 @@ export const CustomerDiscover: React.FC = () => {
                     <div
                       className="bg-[#51634c] h-full rounded-full"
                       style={{
-                        width: `${((cook.dinnerTotalQty - cook.dinnerAvailableQty) / cook.dinnerTotalQty) * 100}%`,
+                        width: `${((cook.dinnerTotalQty - cook.dinnerAvailableQty) / (cook.dinnerTotalQty || 1)) * 100}%`,
                       }}
                     />
                   </div>
@@ -272,14 +298,14 @@ export const CustomerDiscover: React.FC = () => {
               </div>
 
               {/* Cuisine Tags */}
-              <div className="flex flex-wrap gap-1.5">
-                {cook.cuisine.map((c, i) => (
+              <div className="flex flex-wrap gap-1.5 items-center">
+                {cook.cuisine && cook.cuisine.map((c, i) => (
                   <span key={i} className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-[#faf9f8] border border-[#dcc1b1]/40 text-[#564337]">
                     {c}
                   </span>
                 ))}
                 <span className="text-[10px] font-semibold text-[#51634c] ml-auto">
-                  {cook.mealsDelivered.toLocaleString()}+ orders delivered
+                  {(cook.mealsDelivered || 0).toLocaleString()}+ orders delivered
                 </span>
               </div>
             </div>
@@ -300,7 +326,7 @@ export const CustomerDiscover: React.FC = () => {
 
               <button
                 onClick={() => setSelectedCookId(cook.id)}
-                className="flex-1 py-2 px-4 bg-[#944a00] hover:bg-[#713700] text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-colors"
+                className="flex-1 py-2 px-4 bg-[#944a00] hover:bg-[#713700] text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
                 <span>View Full Menu & Schedule</span>
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -310,26 +336,38 @@ export const CustomerDiscover: React.FC = () => {
         ))}
       </div>
 
+      {/* Empty State */}
       {filteredCooks.length === 0 && (
-        <div className="text-center py-12 bg-white rounded-2xl border border-[#dcc1b1]/60 p-8">
-          <Utensils className="w-10 h-10 text-[#564337]/50 mx-auto mb-2" />
-          <h3 className="font-bold text-base text-[#1a1c1c]">No cooks match your current filter</h3>
-          <p className="text-xs text-[#564337] mt-1">
-            Try clearing some filters or searching for another neighborhood.
+        <div className="text-center py-16 bg-white rounded-3xl border border-[#dcc1b1]/60 p-8 shadow-xs">
+          <div className="w-16 h-16 rounded-2xl bg-[#ffdcc5]/40 text-[#944a00] flex items-center justify-center mx-auto mb-4 border border-[#944a00]/20">
+            <Utensils className="w-8 h-8" />
+          </div>
+          <h3 className="font-extrabold text-lg text-[#1a1c1c]">
+            {cooks.length === 0 ? 'No Registered Home Kitchens Yet' : 'No matching home cooks found'}
+          </h3>
+          <p className="text-xs sm:text-sm text-[#564337] mt-1 max-w-md mx-auto leading-relaxed">
+            {cooks.length === 0
+              ? 'When local home chefs sign up and register their kitchen on MealMitra, their daily homemade thalis and weekly menus will appear here.'
+              : 'Try clearing your search query or resetting filters to find cooks in nearby areas.'}
           </p>
-          <button
-            onClick={() => {
-              setSearchQuery('');
-              setSelectedLocation('All Areas');
-              setSelectedCuisine('All');
-              setSelectedRating('All');
-              setSelectedDistance('All');
-              setOnlyOpenKitchens(false);
-            }}
-            className="mt-4 px-4 py-2 bg-[#944a00] text-white text-xs font-bold rounded-xl shadow-xs"
-          >
-            Reset Filters
-          </button>
+
+          {cooks.length > 0 && (
+            <div className="flex items-center justify-center gap-3 mt-5">
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedLocation('All Areas');
+                  setSelectedCuisine('All');
+                  setSelectedRating('All');
+                  setSelectedDistance('All');
+                  setOnlyOpenKitchens(false);
+                }}
+                className="px-5 py-2.5 bg-[#944a00] hover:bg-[#713700] text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer transition-colors"
+              >
+                Reset Filters
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

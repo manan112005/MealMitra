@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import {
   Flame,
   ShoppingBag,
@@ -13,19 +14,39 @@ import {
   ArrowRight,
   ShieldCheck,
   ChevronRight,
+  ChefHat,
 } from 'lucide-react';
 
 export const CookDashboard: React.FC = () => {
+  const { currentUser } = useAuth();
   const {
     currentCookProfile,
     updateKitchenStatus,
     orders,
+    subscriptions,
     updateOrderStatus,
     setCookTab,
   } = useApp();
 
-  const cookOrders = (orders || []).filter((o) => currentCookProfile && o.cookName === currentCookProfile.name);
+  const cookOrders = (orders || []).filter(
+    (o) =>
+      currentCookProfile &&
+      ((o.cookId && o.cookId === currentCookProfile.id) ||
+        (o.cookName && o.cookName.toLowerCase() === currentCookProfile.name.toLowerCase()))
+  );
   const pendingOrders = cookOrders.filter((o) => o.status === 'Confirmed' || o.status === 'Preparing');
+
+  const cookSubscribers = (subscriptions || []).filter((sub) => {
+    if (!currentCookProfile) return false;
+    const matchId = sub.cookId && (sub.cookId === currentCookProfile.id || sub.cookId === 'cook-default');
+    const matchName =
+      sub.cookName &&
+      (sub.cookName.toLowerCase() === currentCookProfile.name.toLowerCase() ||
+        sub.cookName.toLowerCase() === 'home kitchen');
+    return matchId || matchName;
+  });
+
+  const ordersRevenue = cookOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
 
   const handleToggleKitchen = () => {
     updateKitchenStatus({
@@ -61,6 +82,10 @@ export const CookDashboard: React.FC = () => {
                   {currentCookProfile.kitchenOpen ? '● Accepting Orders' : '● Closed'}
                 </span>
               </div>
+              <p className="text-xs font-bold text-[#944a00] mt-0.5 flex items-center gap-1.5">
+                <ChefHat className="w-3.5 h-3.5" />
+                <span>Head Chef: {currentUser?.name || currentCookProfile.chefName || 'Home Cook'}</span>
+              </p>
               <p className="text-xs text-[#564337] mt-0.5">
                 {currentCookProfile.kitchenOpen
                   ? 'Your menu is visible to neighborhood customers with live availability.'
@@ -138,7 +163,7 @@ export const CookDashboard: React.FC = () => {
             <span className="text-xs font-bold">Today's Orders</span>
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-[#944a00] group-hover:scale-105 transition-transform origin-left">
-            {cookOrders.length + 18}
+            {cookOrders.length}
           </div>
           <span className="text-[11px] text-[#564337]/80 mt-1 block">
             {pendingOrders.length} pending in kitchen
@@ -154,9 +179,9 @@ export const CookDashboard: React.FC = () => {
             <span className="text-xs font-bold">Today's Revenue</span>
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-[#51634c] group-hover:scale-105 transition-transform origin-left">
-            ₹3,840
+            ₹{ordersRevenue > 0 ? ordersRevenue.toLocaleString() : (cookSubscribers.length > 0 ? (cookSubscribers.length * 3499).toLocaleString() : '0')}
           </div>
-          <span className="text-[11px] text-[#51634c] font-semibold mt-1 block">+18% vs yesterday</span>
+          <span className="text-[11px] text-[#51634c] font-semibold mt-1 block">Live kitchen payouts</span>
         </div>
 
         <div
@@ -168,7 +193,7 @@ export const CookDashboard: React.FC = () => {
             <span className="text-xs font-bold">Active Subscribers</span>
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-[#944a00] group-hover:scale-105 transition-transform origin-left">
-            18
+            {cookSubscribers.length}
           </div>
           <span className="text-[11px] text-[#564337]/80 mt-1 block">Daily lunch & dinner tiffins</span>
         </div>

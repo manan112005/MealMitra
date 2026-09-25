@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { Order, OrderStatus } from '../../types';
 import {
   ShoppingBag,
@@ -20,7 +21,8 @@ import {
 } from 'lucide-react';
 
 export const CustomerOrders: React.FC = () => {
-  const { orders, updateOrderStatus, setSelectedMealForOrder, meals, setCustomerTab, waitlist } = useApp();
+  const { orders, updateOrderStatus, setSelectedMealForOrder, meals, cooks, setCustomerTab, waitlist, addReview } = useApp();
+  const { user } = useAuth();
   const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<Order | null>(null);
   const [reviewModalOrder, setReviewModalOrder] = useState<Order | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
@@ -64,6 +66,19 @@ export const CustomerOrders: React.FC = () => {
 
   const handleSubmitReview = (e: React.FormEvent) => {
     e.preventDefault();
+    if (reviewModalOrder) {
+      const targetCook = (cooks || []).find((c) => c.name === reviewModalOrder.cookName);
+      addReview({
+        customerName: user?.name || 'MANAN PATEL',
+        customerAvatar: user?.avatar || '',
+        cookId: targetCook ? targetCook.id : reviewModalOrder.cookName,
+        cookName: reviewModalOrder.cookName,
+        mealName: reviewModalOrder.mealName,
+        dishName: reviewModalOrder.mealName,
+        rating: reviewRating,
+        comment: reviewText.trim() || 'Delicious and authentic home-cooked meal!',
+      });
+    }
     setReviewSuccess(true);
     setTimeout(() => {
       setReviewSuccess(false);
@@ -343,10 +358,24 @@ export const CustomerOrders: React.FC = () => {
       {/* Review Modal */}
       {reviewModalOrder && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-[#dcc1b1] shadow-2xl">
-            <h3 className="text-base font-bold text-[#1a1c1c]">
-              Rate {reviewModalOrder.cookName}'s Food
-            </h3>
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-[#dcc1b1] shadow-2xl animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setReviewModalOrder(null)}
+                  className="p-1 px-2.5 rounded-lg text-[#564337] hover:text-[#1a1c1c] hover:bg-gray-100 border border-[#dcc1b1]/60 flex items-center gap-1 text-xs font-bold transition-all shadow-2xs"
+                  title="Back"
+                >
+                  <ArrowRight className="w-3.5 h-3.5 rotate-180" />
+                  <span>Back</span>
+                </button>
+                <div className="h-4 w-px bg-[#dcc1b1]/50" />
+                <h3 className="text-base font-bold text-[#1a1c1c]">
+                  Rate {reviewModalOrder.cookName}'s Food
+                </h3>
+              </div>
+            </div>
             <p className="text-xs text-[#564337]">
               How was your meal for order #{reviewModalOrder.id}? Your feedback helps home cooks maintain high quality.
             </p>
@@ -392,13 +421,14 @@ export const CustomerOrders: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setReviewModalOrder(null)}
-                    className="flex-1 py-2.5 border border-[#dcc1b1] text-[#564337] rounded-xl text-xs font-semibold"
+                    className="px-4 py-2.5 border border-[#dcc1b1] text-[#564337] rounded-xl text-xs font-semibold hover:bg-gray-50 transition-colors flex items-center justify-center gap-1.5"
                   >
-                    Cancel
+                    <ArrowRight className="w-3.5 h-3.5 rotate-180" />
+                    <span>Back</span>
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 bg-[#944a00] text-white rounded-xl text-xs font-bold shadow-xs"
+                    className="flex-1 py-2.5 bg-[#944a00] hover:bg-[#713700] text-white rounded-xl text-xs font-bold shadow-xs transition-colors"
                   >
                     Submit Review
                   </button>
@@ -408,6 +438,7 @@ export const CustomerOrders: React.FC = () => {
           </div>
         </div>
       )}
+
     </div>
   );
 };

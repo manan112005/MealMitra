@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { useAuth, normalizePhone } from '../../context/AuthContext';
+import { useAuth, normalizePhone, getSavedAvatarForUser } from '../../context/AuthContext';
 import { UserRole } from '../../types';
+
 import {
   ChefHat,
   Bike,
@@ -11,6 +12,8 @@ import {
   Phone,
   Mail,
   Lock,
+  Eye,
+  EyeOff,
   HeartHandshake,
   Clock,
   CheckCircle2,
@@ -19,16 +22,20 @@ import {
   Sparkles,
   MapPin,
   UtensilsCrossed,
+  X,
+  Plus,
+  Loader2,
 } from 'lucide-react';
 
 export const EntryScreen: React.FC = () => {
-  const { setRole, setCustomerTab, setCookTab, setDeliveryTab, setAdminTab } = useApp();
+  const { setRole, setCustomerTab, setCookTab, setDeliveryTab, setAdminTab, addCook, setActiveCookId } = useApp();
   const {
     loginWithOTP,
     loginWithEmail,
     loginWithGoogle,
     registerUser,
     checkPhoneRegistered,
+    users,
   } = useAuth();
 
   // Top Toggle: true = Login, false = Register
@@ -39,11 +46,21 @@ export const EntryScreen: React.FC = () => {
   const [loginPhone, setLoginPhone] = useState('');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginOtp, setLoginOtp] = useState('');
   const [loginStep, setLoginStep] = useState<'phone' | 'otp'>('phone');
   const [loginError, setLoginError] = useState('');
   const [isUnregisteredError, setIsUnregisteredError] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // ---------------- GOOGLE ACCOUNT CHOOSER STATES ----------------
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [isSigningInGoogle, setIsSigningInGoogle] = useState(false);
+  const [selectedGoogleAccount, setSelectedGoogleAccount] = useState<string | null>(null);
+  const [showAddCustomGoogle, setShowAddCustomGoogle] = useState(false);
+  const [customGoogleName, setCustomGoogleName] = useState('');
+  const [customGoogleEmail, setCustomGoogleEmail] = useState('');
+  const [customGoogleError, setCustomGoogleError] = useState('');
 
   // ---------------- REGISTER FLOW STATES ----------------
   // Steps: 1 = Role, 2 = Phone, 3 = OTP, 4 = Details
@@ -301,6 +318,34 @@ export const EntryScreen: React.FC = () => {
       });
 
       if (success && user) {
+        if (selectedRole === 'cook') {
+          const cuisineCategory = foodCategory || 'Vegetarian Only';
+          const cuisines = cuisineCategory.includes('Non')
+            ? ['Non-Vegetarian', 'Homemade']
+            : ['Gujarati', 'North Indian', 'Vegetarian'];
+          const kitchenLoc = address.trim() ? `${address.trim()}, ${city.trim()}` : city.trim();
+
+          const createdCook = addCook({
+            name: kitchenName.trim() || name.trim(),
+            chefName: name.trim(),
+            cuisine: cuisines,
+            location: kitchenLoc,
+            phone: regPhone,
+            bio: `Fresh, hygienic and authentic homemade meals cooked daily with care by ${name.trim()}. Pure home spices and wholesome recipes.`,
+            specialties: ['Special Daily Thali', 'Phulka Roti', 'Dal Tadka', 'Jeera Rice'],
+            experienceYears: 5,
+            lunchAvailableQty: 25,
+            lunchTotalQty: 25,
+            dinnerAvailableQty: 20,
+            dinnerTotalQty: 20,
+            rating: 5.0,
+            reviewsCount: 1,
+            mealsDelivered: 0,
+            kitchenOpen: true,
+          });
+          setActiveCookId(createdCook.id);
+        }
+
         // Redirect directly to the correct role dashboard
         navigateToRole(user.role);
       } else {
@@ -311,6 +356,127 @@ export const EntryScreen: React.FC = () => {
     } finally {
       setIsRegistering(false);
     }
+  };
+
+  // Build dynamic Google accounts list from registered users + defaults
+  const googleAccountsList = React.useMemo(() => {
+    const list: Array<{ name: string; email: string; avatar?: string; initialColor?: string; role?: UserRole }> = [];
+    const seenEmails = new Set<string>();
+    const colors = ['bg-blue-600', 'bg-emerald-600', 'bg-purple-600', 'bg-amber-600', 'bg-rose-600', 'bg-indigo-600'];
+
+    const fakeEmails = [
+      'ramesh.delivery@example.com',
+      'jay.shah@example.com',
+      'admin@mealmitra.com',
+      'manan.work@gmail.com',
+      'nirmala@mealmitra.com',
+    ];
+
+    // 1. Add all registered users from database / storage
+    (users || []).forEach((u, idx) => {
+      const emailLower = u.email?.trim().toLowerCase();
+      if (emailLower && !fakeEmails.includes(emailLower) && !seenEmails.has(emailLower)) {
+        seenEmails.add(emailLower);
+        const persistentAvatar = getSavedAvatarForUser(u.email) || getSavedAvatarForUser(u.id) || u.avatar || '';
+        list.push({
+          name: u.name || 'Registered User',
+          email: u.email,
+          avatar: persistentAvatar,
+          initialColor: colors[idx % colors.length],
+          role: u.role,
+        });
+      }
+    });
+
+    // 2. Also check if there's any active / recent registered user from localStorage
+    try {
+      const savedUsers = localStorage.getItem('mealmitra_registered_users');
+      if (savedUsers) {
+        const parsed = JSON.parse(savedUsers) as any[];
+        parsed.forEach((u, idx) => {
+          const emailLower = u.email?.trim().toLowerCase();
+          if (emailLower && !fakeEmails.includes(emailLower) && !seenEmails.has(emailLower)) {
+            seenEmails.add(emailLower);
+            const persistentAvatar = getSavedAvatarForUser(u.email) || getSavedAvatarForUser(u.id) || u.avatar || '';
+            list.push({
+              name: u.name || 'User',
+              email: u.email,
+              avatar: persistentAvatar,
+              initialColor: colors[(idx + 2) % colors.length],
+              role: u.role,
+            });
+          }
+        });
+      }
+    } catch {}
+
+    // 3. Defaults - Only the 2 real users
+    const defaults = [
+      {
+        name: 'MANAN PATEL',
+        email: 'patelmanan4057@gmail.com',
+        avatar: getSavedAvatarForUser('patelmanan4057@gmail.com') || '',
+        initialColor: 'bg-blue-600',
+        role: 'customer' as UserRole,
+      },
+      {
+        name: 'Manan (Personal)',
+        email: 'manan.personal@gmail.com',
+        avatar: getSavedAvatarForUser('manan.personal@gmail.com') || '',
+        initialColor: 'bg-emerald-600',
+        role: 'customer' as UserRole,
+      },
+    ];
+
+    defaults.forEach((def) => {
+      const defEmailLower = def.email.toLowerCase();
+      if (!seenEmails.has(defEmailLower)) {
+        seenEmails.add(defEmailLower);
+        list.push(def);
+      }
+    });
+
+    return list;
+  }, [users, showGoogleModal]);
+
+  const handleSelectGoogleAccount = async (account: { name: string; email: string; avatar?: string; role?: UserRole }) => {
+    setSelectedGoogleAccount(account.email);
+    setIsSigningInGoogle(true);
+    try {
+      const freshAvatar = getSavedAvatarForUser(account.email) || account.avatar;
+      const res = await loginWithGoogle({
+        name: account.name,
+        email: account.email,
+        avatar: freshAvatar,
+        role: account.role || 'customer',
+      });
+      if (res.success && res.user) {
+        setShowGoogleModal(false);
+        navigateToRole(res.user.role);
+      }
+    } finally {
+      setIsSigningInGoogle(false);
+      setSelectedGoogleAccount(null);
+    }
+  };
+
+
+  const handleAddCustomGoogleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCustomGoogleError('');
+    if (!customGoogleName.trim()) {
+      setCustomGoogleError('Please enter your full name.');
+      return;
+    }
+    if (!customGoogleEmail.trim() || !customGoogleEmail.includes('@')) {
+      setCustomGoogleError('Please enter a valid Google email address.');
+      return;
+    }
+
+    await handleSelectGoogleAccount({
+      name: customGoogleName.trim(),
+      email: customGoogleEmail.trim().toLowerCase(),
+    });
   };
 
   const handleAdminAccess = () => {
@@ -489,14 +655,6 @@ export const EntryScreen: React.FC = () => {
                             <div className="flex flex-wrap gap-1.5">
                               <button
                                 type="button"
-                                onClick={() => handleQuickFillLogin('9876543210')}
-                                className="px-2 py-1 rounded-md bg-[#d1e6c9]/50 hover:bg-[#d1e6c9] text-[#51634c] text-[10px] font-bold border border-[#51634c]/20 transition-colors"
-                                title="Home Cook: Nirmala Devi"
-                              >
-                                👩🍳 Cook (9876543210)
-                              </button>
-                              <button
-                                type="button"
                                 onClick={() => handleQuickFillLogin('9898011223')}
                                 className="px-2 py-1 rounded-md bg-[#d1e4fc]/50 hover:bg-[#d1e4fc] text-[#4e6074] text-[10px] font-bold border border-[#4e6074]/20 transition-colors"
                                 title="Delivery Partner: Ramesh Patel"
@@ -584,13 +742,27 @@ export const EntryScreen: React.FC = () => {
                           className="w-full px-4 py-3.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] transition-all font-medium shadow-2xs"
                           placeholder="Email Address"
                         />
-                        <input
-                          type="password"
-                          value={loginPassword}
-                          onChange={(e) => setLoginPassword(e.target.value)}
-                          className="w-full px-4 py-3.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] transition-all font-medium shadow-2xs"
-                          placeholder="Password"
-                        />
+                        <div className="relative">
+                          <input
+                            type={showLoginPassword ? 'text' : 'password'}
+                            value={loginPassword}
+                            onChange={(e) => setLoginPassword(e.target.value)}
+                            className="w-full pl-4 pr-11 py-3.5 border border-[#eeeeed] bg-white rounded-xl text-sm focus:outline-none focus:border-[#dcc1b1] focus:ring-1 focus:ring-[#dcc1b1] transition-all font-medium shadow-2xs"
+                            placeholder="Password"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowLoginPassword(!showLoginPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-[#564337]/60 hover:text-[#1a1c1c] transition-colors cursor-pointer rounded-lg hover:bg-gray-100"
+                            title={showLoginPassword ? 'Hide password' : 'Show password'}
+                          >
+                            {showLoginPassword ? (
+                              <EyeOff className="w-4 h-4" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
                         <button
                           type="submit"
                           className="w-full py-3.5 bg-[#1a1c1c] hover:bg-[#333] text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 group cursor-pointer"
@@ -639,8 +811,9 @@ export const EntryScreen: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          loginWithGoogle('customer');
-                          navigateToRole('customer');
+                          setCustomGoogleError('');
+                          setShowAddCustomGoogle(false);
+                          setShowGoogleModal(true);
                         }}
                         className="w-full flex items-center justify-center gap-2 py-2.5 bg-white border border-[#eeeeed] hover:bg-[#faf9f8] hover:border-[#dcc1b1] rounded-xl text-[11px] font-bold text-[#564337] transition-all shadow-2xs cursor-pointer"
                       >
@@ -1164,6 +1337,182 @@ export const EntryScreen: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Google Account Selector Modal */}
+      {showGoogleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div
+            className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-6 sm:p-7 border-b border-gray-100 relative">
+              <button
+                type="button"
+                onClick={() => setShowGoogleModal(false)}
+                className="absolute right-5 top-5 p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
+                title="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <div className="flex items-center gap-2.5 mb-2">
+                <svg className="w-6 h-6" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                  />
+                </svg>
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Google Accounts
+                </span>
+              </div>
+
+              <h3 className="text-xl font-bold text-gray-900">Sign in with Google</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Choose an account to continue to <span className="font-semibold text-gray-800">MealMitra</span>
+              </p>
+            </div>
+
+            {/* Account List */}
+            <div className="p-4 sm:p-6 space-y-2 max-h-[360px] overflow-y-auto">
+              {googleAccountsList.map((acc) => {
+                const isCurrentSigning = isSigningInGoogle && selectedGoogleAccount === acc.email;
+                const dynamicAvatar = getSavedAvatarForUser(acc.email) || acc.avatar;
+                return (
+                  <button
+                    key={acc.email}
+                    type="button"
+                    disabled={isSigningInGoogle}
+                    onClick={() => handleSelectGoogleAccount(acc)}
+                    className="w-full flex items-center gap-3.5 p-3 rounded-2xl hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all text-left group cursor-pointer disabled:opacity-60"
+                  >
+
+                    {dynamicAvatar ? (
+                      <img
+                        src={dynamicAvatar}
+                        alt={acc.name}
+                        className="w-10 h-10 rounded-full object-cover border border-gray-200 shadow-2xs group-hover:scale-105 transition-transform"
+                      />
+                    ) : (
+                      <div
+                        className={`w-10 h-10 rounded-full ${acc.initialColor} text-white font-bold text-sm flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform`}
+                      >
+                        {acc.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-gray-900 truncate">
+                        {acc.name}
+                      </div>
+                      <div className="text-xs text-gray-500 truncate">{acc.email}</div>
+                    </div>
+
+                    {isCurrentSigning ? (
+                      <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                    ) : (
+                      <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all" />
+                    )}
+                  </button>
+                );
+              })}
+
+              {/* Use Another Account Accordion */}
+              <div className="pt-2 border-t border-gray-100">
+                {!showAddCustomGoogle ? (
+                  <button
+                    type="button"
+                    disabled={isSigningInGoogle}
+                    onClick={() => setShowAddCustomGoogle(true)}
+                    className="w-full flex items-center gap-3.5 p-3 rounded-2xl hover:bg-gray-50 border border-dashed border-gray-200 transition-all text-left group cursor-pointer text-gray-700"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-gray-100 text-gray-600 font-bold flex items-center justify-center group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
+                      <Plus className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-sm font-semibold text-gray-800">Use another account</div>
+                      <div className="text-[11px] text-gray-400">Sign in with any other Google ID</div>
+                    </div>
+                  </button>
+                ) : (
+                  <form
+                    onSubmit={handleAddCustomGoogleSubmit}
+                    className="p-3 bg-gray-50/80 rounded-2xl border border-gray-200/80 space-y-2.5 animate-in fade-in"
+                  >
+                    <div className="text-xs font-bold text-gray-800 flex items-center justify-between">
+                      <span>Add Google Account</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddCustomGoogle(false)}
+                        className="text-[11px] text-gray-400 hover:text-gray-600"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+
+                    {customGoogleError && (
+                      <div className="text-[11px] text-red-600 font-medium bg-red-50 p-2 rounded-lg border border-red-100">
+                        {customGoogleError}
+                      </div>
+                    )}
+
+                    <input
+                      type="text"
+                      value={customGoogleName}
+                      onChange={(e) => setCustomGoogleName(e.target.value)}
+                      placeholder="Full Name (e.g. Manan Patel)"
+                      className="w-full px-3.5 py-2 text-xs bg-white border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      required
+                    />
+
+                    <input
+                      type="email"
+                      value={customGoogleEmail}
+                      onChange={(e) => setCustomGoogleEmail(e.target.value)}
+                      placeholder="Google Email (e.g. user@gmail.com)"
+                      className="w-full px-3.5 py-2 text-xs bg-white border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      required
+                    />
+
+                    <button
+                      type="submit"
+                      disabled={isSigningInGoogle}
+                      className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+                    >
+                      {isSigningInGoogle ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Signing in...</span>
+                        </>
+                      ) : (
+                        <span>Continue with this account</span>
+                      )}
+                    </button>
+                  </form>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer Notice */}
+            <div className="p-4 bg-gray-50 border-t border-gray-100 text-[10px] text-gray-500 text-center leading-relaxed">
+              To continue, Google will share your name, email address, and profile picture with MealMitra.
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

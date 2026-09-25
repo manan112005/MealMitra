@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { Users, ChefHat, Bike, Search, ShieldCheck } from 'lucide-react';
 
 export const AdminUsers: React.FC = () => {
-  const { cooks } = useApp();
+  const { cooks, deleteCook } = useApp();
   const [activeTab, setActiveTab] = useState<'customers' | 'cooks' | 'delivery'>('cooks');
 
   return (
@@ -88,7 +88,12 @@ export const AdminUsers: React.FC = () => {
                       </span>
                     </td>
                     <td className="p-4 text-right">
-                      <button className="text-indigo-600 font-semibold text-xs hover:underline">Manage</button>
+                      <button
+                        onClick={() => deleteCook(cook.id)}
+                        className="text-red-600 font-semibold text-xs hover:underline cursor-pointer"
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))}

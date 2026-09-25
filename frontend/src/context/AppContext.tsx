@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth, normalizePhone } from './AuthContext';
 import {
   UserRole,
   CustomerTab,
@@ -19,6 +20,7 @@ import {
   MealSlotItem,
   WaitlistEntry,
   UpcomingMealSlot,
+  AppNotification,
 } from '../types';
 import {
   MOCK_COOKS,
@@ -59,12 +61,14 @@ interface AppContextType {
   meals: Meal[];
   orders: Order[];
   subscriptionPlans: SubscriptionPlan[];
+  subscriptions: UserSubscription[];
   userSubscription: UserSubscription | null;
   reviews: Review[];
   deliveryAssignments: DeliveryAssignment[];
   clusterStops: ClusterRouteStop[];
   routeStops: RouteStop[];
   deliveryPartnerState: DeliveryPartnerState;
+  notifications: AppNotification[];
 
   waitlist: WaitlistEntry[];
 
@@ -75,6 +79,9 @@ interface AppContextType {
 
   // Actions
   toggleFollowCook: (cookId: string) => void;
+  addNotification: (notification: Omit<AppNotification, 'id' | 'time' | 'read'>) => void;
+  markNotificationsAsRead: () => void;
+  clearNotifications: () => void;
   placeOrder: (orderData: {
     meal: Meal;
     quantity: number;
@@ -121,8 +128,25 @@ interface AppContextType {
   ) => void;
   autofillCookWeeklyMenu: (cookId: string) => void;
   updateCookProfile: (cookId: string, updated: Partial<CookProfile>) => void;
+  addCook: (cookData: Partial<CookProfile>) => CookProfile;
+  deleteCook: (cookId: string) => void;
+  clearMockCooks: () => void;
+  getCookSubscriptionPlans: (cookId: string) => SubscriptionPlan[];
+  updateCookSubscriptionPlans: (cookId: string, plans: SubscriptionPlan[]) => void;
   updateUserSubscription: (updated: Partial<UserSubscription>) => void;
-  subscribeToPlan: (plan: SubscriptionPlan, details: { address: string; lunchTiming: string; dinnerTiming: string }) => void;
+  subscribeToPlan: (
+    plan: SubscriptionPlan,
+    details: {
+      cookId?: string;
+      cookName?: string;
+      cookAvatar?: string;
+      address: string;
+      officeAddress?: string;
+      lunchTiming: string;
+      dinnerTiming: string;
+      dietaryNotes?: string;
+    }
+  ) => void;
   addReview: (review: Omit<Review, 'id' | 'date' | 'likes'>) => void;
   confirmPickup: (assignmentId: string) => void;
   startDelivery: (assignmentId: string) => void;
@@ -136,52 +160,252 @@ interface AppContextType {
   deleteMeal: (mealId: string) => void;
 }
 
+export const getDefaultCookSubscriptionPlans = (cookName: string = 'Home Kitchen', cookId: string = 'cook-default'): SubscriptionPlan[] => [
+  {
+    id: `plan-${cookId}-lunch`,
+    cookId,
+    cookName,
+    type: 'Monthly',
+    category: 'Lunch Only',
+    name: `${cookName} Daily Office Lunch Tiffin`,
+    price: 3499,
+    billingPeriod: '/ month (26 lunch meals)',
+    mealsCount: 26,
+    deliveryTimeWindow: '12:30 PM – 1:30 PM',
+    description: `Hot, nutritious home-cooked lunch packed fresh daily by ${cookName} and delivered directly to your office desk.`,
+    features: [
+      '26 Fresh Homestyle Lunch Meals',
+      'Daily rotating sabzi, dal, 4 ghee phulkas & rice',
+      'Free office desk or home delivery',
+      'Pause or skip meals anytime with 3h notice',
+      'Zero-spill thermal tiffin carrier included',
+    ],
+    terms: [
+      'Skip cutoff: 10:30 AM on delivery day',
+      'Valid for 30 calendar days from start',
+      'Up to 7 days pause allowance without penalty',
+    ],
+    isPopular: false,
+  },
+  {
+    id: `plan-${cookId}-dinner`,
+    cookId,
+    cookName,
+    type: 'Monthly',
+    category: 'Dinner Only',
+    name: `${cookName} Evening Comfort Dinner Plan`,
+    price: 3799,
+    billingPeriod: '/ month (26 dinner meals)',
+    mealsCount: 26,
+    deliveryTimeWindow: '7:30 PM – 8:30 PM',
+    description: `Light, wholesome and comforting homestyle dinners prepared by ${cookName} to unwind your evenings without cooking fatigue.`,
+    features: [
+      '26 Wholesome Dinner Meals',
+      'Comfort menu: khichdi, kadhi, soft rotis & light sabzi',
+      'Free evening doorstep delivery',
+      'Digestives & fresh salad/chaas included',
+      'Instant weekend customization',
+    ],
+    terms: [
+      'Skip cutoff: 5:30 PM on delivery day',
+      'Valid for 30 calendar days',
+      'Up to 7 days pause allowance',
+    ],
+    isPopular: false,
+  },
+  {
+    id: `plan-${cookId}-full`,
+    cookId,
+    cookName,
+    type: 'Monthly',
+    category: 'Lunch + Dinner',
+    name: `${cookName} Full Day Care (Lunch + Dinner)`,
+    price: 6499,
+    billingPeriod: '/ month (52 meals)',
+    mealsCount: 52,
+    deliveryTimeWindow: 'Lunch 12:30 PM | Dinner 7:30 PM',
+    description: `Complete zero-cooking lifestyle care by ${cookName}. Nutritious lunch delivered at work + comforting dinner at home.`,
+    features: [
+      '52 Total Meals (26 Lunch + 26 Dinner)',
+      'Dual address delivery: Office for lunch, Home for dinner',
+      'Priority kitchen prep slot & zero delays',
+      'Unlimited pause & skip with instant waitlist credits',
+      'Dedicated WhatsApp support from chef',
+    ],
+    terms: [
+      'Dual delivery included across all active cluster routes',
+      'Valid for 30 calendar days',
+      'Up to 10 days pause allowance',
+    ],
+    isPopular: true,
+  },
+  {
+    id: `plan-${cookId}-trial`,
+    cookId,
+    cookName,
+    type: '15 Days',
+    category: 'Lunch Only',
+    name: `${cookName} 15-Day Taste Trial Tiffin`,
+    price: 1999,
+    billingPeriod: '/ 15 days (13 meals)',
+    mealsCount: 13,
+    deliveryTimeWindow: '12:30 PM – 1:30 PM',
+    description: `Try out ${cookName}'s fresh cooking with zero long-term commitment. 13 authentic homestyle meals.`,
+    features: [
+      '13 Fresh Lunch Meals',
+      'Taste all chef specialties with zero lock-in',
+      'Includes sweet on Wednesdays & Fridays',
+      'Skip up to 3 meals anytime',
+    ],
+    terms: [
+      'Valid for 15 calendar days',
+      'Non-transferable trial voucher',
+    ],
+    isPopular: false,
+  },
+];
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { currentUser } = useAuth();
   const [role, setRoleState] = useState<UserRole>(() => {
+    const savedUser = localStorage.getItem('mealmitra_currentUser');
+    if (!savedUser) return 'entry';
     const saved = localStorage.getItem('mealmitra_role');
     return (saved as UserRole) || 'entry';
   });
 
-  const [customerTab, setCustomerTab] = useState<CustomerTab>('dashboard');
-  const [cookTab, setCookTab] = useState<CookTab>('dashboard');
-  const [deliveryTab, setDeliveryTab] = useState<DeliveryTab>('dashboard');
-  const [adminTab, setAdminTab] = useState<AdminTab>('dashboard');
+  const [customerTab, setCustomerTabState] = useState<CustomerTab>(() => {
+    return (localStorage.getItem('mealmitra_customer_tab') as CustomerTab) || 'dashboard';
+  });
+  const [cookTab, setCookTabState] = useState<CookTab>(() => {
+    return (localStorage.getItem('mealmitra_cook_tab') as CookTab) || 'dashboard';
+  });
+  const [deliveryTab, setDeliveryTabState] = useState<DeliveryTab>(() => {
+    return (localStorage.getItem('mealmitra_delivery_tab') as DeliveryTab) || 'dashboard';
+  });
+  const [adminTab, setAdminTabState] = useState<AdminTab>(() => {
+    return (localStorage.getItem('mealmitra_admin_tab') as AdminTab) || 'dashboard';
+  });
+
+  const setCustomerTab = (tab: CustomerTab) => {
+    setCustomerTabState(tab);
+    localStorage.setItem('mealmitra_customer_tab', tab);
+  };
+  const setCookTab = (tab: CookTab) => {
+    setCookTabState(tab);
+    localStorage.setItem('mealmitra_cook_tab', tab);
+  };
+  const setDeliveryTab = (tab: DeliveryTab) => {
+    setDeliveryTabState(tab);
+    localStorage.setItem('mealmitra_delivery_tab', tab);
+  };
+  const setAdminTab = (tab: AdminTab) => {
+    setAdminTabState(tab);
+    localStorage.setItem('mealmitra_admin_tab', tab);
+  };
 
   const [selectedCookId, setSelectedCookId] = useState<string | null>(null);
   const [selectedMealForOrder, setSelectedMealForOrder] = useState<Meal | null>(null);
 
   const [cooks, setCooks] = useState<CookProfile[]>(() => {
-    const saved = localStorage.getItem('mealmitra_cooks');
-    return saved ? JSON.parse(saved) : MOCK_COOKS;
+    try {
+      const saved = localStorage.getItem('mealmitra_cooks');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.filter(
+          (c: CookProfile) =>
+            !['cook-1', 'cook-2', 'cook-3', 'cook-4', 'cook-5'].includes(c.id) &&
+            !['Nirmala Devi', 'Chef Maria Fernandes', 'Aunt Sarah', 'Cook David', 'Ananya Sharma'].includes(c.name)
+        );
+      }
+    } catch {}
+    return [];
   });
 
   const [meals, setMeals] = useState<Meal[]>(() => {
-    const saved = localStorage.getItem('mealmitra_meals');
-    return saved ? JSON.parse(saved) : MOCK_MEALS;
+    try {
+      const saved = localStorage.getItem('mealmitra_meals');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.filter(
+          (m: Meal) =>
+            !['meal-1', 'meal-2', 'meal-3', 'meal-4', 'meal-5', 'meal-6'].includes(m.id) &&
+            !['cook-1', 'cook-2', 'cook-3', 'cook-4', 'cook-5'].includes(m.cookId)
+        );
+      }
+    } catch {}
+    return [];
   });
 
   const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem('mealmitra_orders');
-    return saved ? JSON.parse(saved) : MOCK_ORDERS;
+    try {
+      const saved = localStorage.getItem('mealmitra_orders');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.filter((o: Order) => !['cook-1', 'cook-2', 'cook-3', 'cook-4', 'cook-5'].includes(o.cookId));
+      }
+    } catch {}
+    return [];
   });
 
   const [subscriptionPlans] = useState<SubscriptionPlan[]>(MOCK_SUBSCRIPTION_PLANS);
 
-  const [userSubscription, setUserSubscription] = useState<UserSubscription | null>(() => {
-    const saved = localStorage.getItem('mealmitra_subscription');
-    return saved ? JSON.parse(saved) : MOCK_USER_SUBSCRIPTION;
+  const [subscriptions, setSubscriptions] = useState<UserSubscription[]>(() => {
+    try {
+      const saved = localStorage.getItem('mealmitra_subscriptions');
+      if (saved) {
+        const parsed = JSON.parse(saved) as UserSubscription[];
+        if (Array.isArray(parsed)) {
+          return parsed.filter(
+            (s) =>
+              !['Nirmala Devi', 'Chef Maria Fernandes', 'Aunt Sarah', 'Cook David'].includes(s.cookName) &&
+              !['Jay Shah', 'Priya Mehta', 'Aarav Sharma', 'Meera Trivedi'].includes(s.customerName)
+          );
+        }
+      }
+    } catch {}
+    return [];
   });
+
+  const userSubscription = React.useMemo(() => {
+    if (!currentUser) return null;
+    return (
+      subscriptions.find(
+        (s) =>
+          (s.customerId && s.customerId === currentUser.id) ||
+          (s.customerName && s.customerName.toLowerCase() === currentUser.name.toLowerCase()) ||
+          (currentUser.phone && s.customerPhone && normalizePhone(s.customerPhone) === normalizePhone(currentUser.phone))
+      ) ||
+      subscriptions[0] ||
+      null
+    );
+  }, [subscriptions, currentUser]);
 
   const [reviews, setReviews] = useState<Review[]>(() => {
     const saved = localStorage.getItem('mealmitra_reviews');
-    return saved ? JSON.parse(saved) : MOCK_REVIEWS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter(
+            (r: Review) =>
+              !['rev-1', 'rev-2', 'rev-3'].includes(r.id) &&
+              !['Nirmala Devi', 'Chef Maria Fernandes', 'Ananya Sharma', 'Aunt Sarah', 'Cook David'].includes(r.cookName) &&
+              !['Jay Shah', 'Pooja Verma', 'Rohan Mehra'].includes(r.customerName)
+          );
+        }
+      } catch {
+        return [];
+      }
+    }
+    return [];
   });
 
   const [deliveryAssignments, setDeliveryAssignments] = useState<DeliveryAssignment[]>(() => {
     const saved = localStorage.getItem('mealmitra_delivery_assignments');
-    return saved ? JSON.parse(saved) : MOCK_DELIVERY_ASSIGNMENTS;
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [clusterStops, setClusterStops] = useState<ClusterRouteStop[]>(() => {
@@ -204,12 +428,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [activeCookId, setActiveCookId] = useState<string>('cook-1');
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
+    try {
+      const saved = localStorage.getItem('mealmitra_notifications');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [activeCookId, setActiveCookId] = useState<string>('');
 
   const setRole = (newRole: UserRole) => {
     setRoleState(newRole);
     localStorage.setItem('mealmitra_role', newRole);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const addNotification = (notifData: Omit<AppNotification, 'id' | 'time' | 'read'>) => {
+    const newNotif: AppNotification = {
+      id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      ...notifData,
+      time: 'Just now',
+      read: false,
+    };
+    setNotifications((prev) => [newNotif, ...prev]);
+  };
+
+  const markNotificationsAsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
+  const clearNotifications = () => {
+    setNotifications([]);
   };
 
   useEffect(() => {
@@ -225,10 +476,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [orders]);
 
   useEffect(() => {
+    localStorage.setItem('mealmitra_subscriptions', JSON.stringify(subscriptions));
     if (userSubscription) {
       localStorage.setItem('mealmitra_subscription', JSON.stringify(userSubscription));
     }
-  }, [userSubscription]);
+  }, [subscriptions, userSubscription]);
 
   useEffect(() => {
     localStorage.setItem('mealmitra_reviews', JSON.stringify(reviews));
@@ -254,10 +506,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('mealmitra_waitlist', JSON.stringify(waitlist));
   }, [waitlist]);
 
-  const currentCookProfile =
+  useEffect(() => {
+    localStorage.setItem('mealmitra_notifications', JSON.stringify(notifications));
+  }, [notifications]);
+
+  const resolvedCook =
     (cooks && cooks.find((c) => c.id === activeCookId)) ||
-    (cooks && cooks[0]) ||
-    MOCK_COOKS[0];
+    (cooks && cooks[0]);
+
+  const realChefName =
+    currentUser?.name ||
+    currentUser?.applicationDetails?.chefName ||
+    resolvedCook?.chefName ||
+    'Home Cook';
+
+  const kitchenBrandName =
+    currentUser?.applicationDetails?.kitchenName ||
+    resolvedCook?.name ||
+    (currentUser?.name ? `${currentUser.name}'s Kitchen` : 'Home Kitchen');
+
+  const currentCookProfile: CookProfile = resolvedCook
+    ? {
+        ...resolvedCook,
+        name: resolvedCook.name || kitchenBrandName,
+        chefName: currentUser?.name || resolvedCook.chefName || realChefName,
+      }
+    : {
+        id: 'cook-default',
+        name: kitchenBrandName,
+        chefName: realChefName,
+        avatar:
+          currentUser?.avatar ||
+          'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&w=500&q=80',
+        coverImage:
+          'https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=1200&q=80',
+        bio: `Fresh, hygienic and authentic homemade meals cooked daily with care by ${realChefName}. Pure home spices and wholesome recipes.`,
+        cuisine: ['Homemade', 'North Indian', 'Gujarati'],
+        rating: 5.0,
+        reviewsCount: 0,
+        experienceYears: 4,
+        mealsDelivered: 0,
+        followersCount: 0,
+        distanceKm: 1.2,
+        location:
+          currentUser?.applicationDetails?.kitchenAddress ||
+          currentUser?.applicationDetails?.city ||
+          'Ahmedabad',
+        phone: currentUser?.phone || '',
+        kitchenOpen: true,
+        lunchAvailableQty: 25,
+        lunchTotalQty: 25,
+        dinnerAvailableQty: 20,
+        dinnerTotalQty: 20,
+        specialties: ['Special Thali', 'Phulka Roti', 'Dal Tadka', 'Jeera Rice'],
+        weeklyMenu: INITIAL_WEEKLY_MENU,
+        hygieneRating: 'FSSAI Verified ★★★★★',
+        lunchCutoffTime: '11:00 AM',
+        dinnerCutoffTime: '6:00 PM',
+        pickupAddress: currentUser?.applicationDetails?.kitchenAddress || 'Ahmedabad',
+        certifications: ['FSSAI Certified Home Kitchen', 'Hygiene Standard A+'],
+        repeatCustomerRate: 100,
+        aspectRatings: { flavor: 5.0, spiciness: 4.8, portion: 5.0, punctuality: 5.0 },
+      };
 
   const toggleFollowCook = (cookId: string) => {
     setCooks((prev) =>
@@ -402,6 +712,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Backend optional / offline fallback
     });
 
+    addNotification({
+      title: 'Order Placed Successfully',
+      message: `Your order #${newOrderId} for ${orderData.meal.name} (Qty: ${orderData.quantity}) has been confirmed!`,
+      type: 'order',
+    });
+
     return newOrderId;
   };
 
@@ -453,8 +769,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return m;
     });
 
-    setUserSubscription({
-      ...userSubscription,
+    updateUserSubscription({
       upcomingMeals: updatedUpcoming,
     });
 
@@ -508,12 +823,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return d;
       })
     );
+
+    addNotification({
+      title: `Order Update: ${status}`,
+      message: `Order #${orderId} status has changed to "${status}".`,
+      type: 'order',
+    });
   };
 
   const updateKitchenStatus = (cookId: string, open: boolean) => {
+    const cook = cooks.find((c) => c.id === cookId) || currentCookProfile;
+    const cookName = cook?.name || 'Home Kitchen';
+
     setCooks((prev) =>
       prev.map((c) => (c.id === cookId ? { ...c, kitchenOpen: open } : c))
     );
+
+    addNotification({
+      title: open ? `📢 ${cookName}: Kitchen Opened` : `🚨 ${cookName}: Kitchen Closed`,
+      message: open
+        ? `${cookName} is now OPEN and accepting fresh homemade meal orders!`
+        : `${cookName} has closed for today. New orders are paused.`,
+      type: 'kitchen',
+    });
   };
 
   const updateKitchenQuantities = (
@@ -523,6 +855,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     dinnerAvail: number,
     dinnerTotal: number
   ) => {
+    const cook = cooks.find((c) => c.id === cookId) || currentCookProfile;
+    const cookName = cook?.name || 'Home Kitchen';
+
     setCooks((prev) =>
       prev.map((c) =>
         c.id === cookId
@@ -537,6 +872,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : c
       )
     );
+
+    if (lunchAvail === 0 && dinnerAvail === 0) {
+      addNotification({
+        title: `🚨 ${cookName}: Lunch & Dinner Sold Out`,
+        message: `All lunch and dinner tiffin slots for ${cookName} are now completely SOLD OUT for today!`,
+        type: 'kitchen',
+      });
+    } else if (lunchAvail === 0) {
+      addNotification({
+        title: `🚨 ${cookName}: Lunch Sold Out`,
+        message: `Today's Lunch slot for ${cookName} is now SOLD OUT. Dinner slots (${dinnerAvail} remaining) are still open!`,
+        type: 'kitchen',
+      });
+    } else if (dinnerAvail === 0) {
+      addNotification({
+        title: `🚨 ${cookName}: Dinner Sold Out`,
+        message: `Today's Dinner slot for ${cookName} is now SOLD OUT. Lunch slots (${lunchAvail} remaining) are available!`,
+        type: 'kitchen',
+      });
+    } else {
+      addNotification({
+        title: `📢 ${cookName}: Capacity Published`,
+        message: `${cookName} has ${lunchAvail} Lunch & ${dinnerAvail} Dinner slots available to order.`,
+        type: 'kitchen',
+      });
+    }
   };
 
   const updateCookWeeklyMenu = (
@@ -712,34 +1073,266 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
+  const addCook = (cookData: Partial<CookProfile>): CookProfile => {
+    const newCookId = cookData.id || `cook-${Date.now()}`;
+    const newCook: CookProfile = {
+      id: newCookId,
+      name: cookData.name || 'Home Cook',
+      chefName: cookData.chefName || 'Home Cook',
+      avatar:
+        cookData.avatar ||
+        'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&w=500&q=80',
+      coverImage:
+        cookData.coverImage ||
+        'https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=1200&q=80',
+      bio:
+        cookData.bio ||
+        'Passionate home cook serving authentic, nutritious, home-cooked daily meals with traditional spices and fresh ingredients.',
+      cuisine: cookData.cuisine && cookData.cuisine.length > 0 ? cookData.cuisine : ['Homemade', 'Gujarati'],
+      rating: cookData.rating ?? 4.9,
+      reviewsCount: cookData.reviewsCount ?? 1,
+      experienceYears: cookData.experienceYears ?? 4,
+      mealsDelivered: cookData.mealsDelivered ?? 0,
+      followersCount: cookData.followersCount ?? 0,
+      distanceKm: cookData.distanceKm ?? 1.2,
+      location: cookData.location || 'Navrangpura, Ahmedabad',
+      phone: cookData.phone || '9876543210',
+      kitchenOpen: cookData.kitchenOpen ?? true,
+      lunchAvailableQty: cookData.lunchAvailableQty ?? 25,
+      lunchTotalQty: cookData.lunchTotalQty ?? 25,
+      dinnerAvailableQty: cookData.dinnerAvailableQty ?? 20,
+      dinnerTotalQty: cookData.dinnerTotalQty ?? 20,
+      specialties:
+        cookData.specialties && cookData.specialties.length > 0
+          ? cookData.specialties
+          : ['Special Daily Thali', 'Phulka Roti', 'Dal Tadka', 'Jeera Rice'],
+      weeklyMenu: cookData.weeklyMenu || JSON.parse(JSON.stringify(INITIAL_WEEKLY_MENU)),
+      hygieneRating: cookData.hygieneRating || 'FSSAI Verified ★★★★★',
+      lunchCutoffTime: '11:00 AM',
+      dinnerCutoffTime: '6:00 PM',
+      pickupAddress: cookData.location || 'Navrangpura, Ahmedabad',
+      certifications: ['FSSAI Certified Home Kitchen', 'Hygiene Standard A+'],
+      repeatCustomerRate: 95,
+      aspectRatings: {
+        flavor: 4.9,
+        spiciness: 4.7,
+        portion: 4.8,
+        punctuality: 4.9,
+      },
+    };
+
+    setCooks((prev) => {
+      const exists = prev.some((c) => c.id === newCook.id || (newCook.phone && c.phone === newCook.phone));
+      if (exists) {
+        return prev.map((c) => (c.id === newCook.id || c.phone === newCook.phone ? { ...c, ...newCook } : c));
+      }
+      return [newCook, ...prev];
+    });
+
+    // Automatically create a signature meal for this newly added cook
+    const newMeal: Meal = {
+      id: `m-${newCook.id}`,
+      cookId: newCook.id,
+      cookName: newCook.name,
+      cookAvatar: newCook.avatar,
+      name: `${newCook.name}'s Special Daily Homemade Thali`,
+      description: `Wholesome, hot homemade thali with 4 rotis, seasonal sabji, dal, steamed rice, salad & pickle.`,
+      price: 130,
+      category: 'Both',
+      period: 'Both',
+      availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+      dietary: 'Vegetarian',
+      image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=600&q=80',
+      rating: 4.9,
+      reviewsCount: 1,
+      itemsIncluded: ['4 Phulka Rotis', 'Paneer Sabji', 'Dal Tadka', 'Jeera Rice', 'Salad', 'Pickle'],
+      calories: 540,
+      availableQty: newCook.lunchAvailableQty,
+      totalQty: newCook.lunchTotalQty,
+      deliveryEstimateMin: 30,
+      distanceKm: newCook.distanceKm,
+    };
+
+    setMeals((prev) => {
+      if (!prev.some((m) => m.id === newMeal.id)) {
+        return [newMeal, ...prev];
+      }
+      return prev;
+    });
+
+    return newCook;
+  };
+
+  const deleteCook = (cookId: string) => {
+    setCooks((prev) => prev.filter((c) => c.id !== cookId));
+    setMeals((prev) => prev.filter((m) => m.cookId !== cookId));
+  };
+
+  const clearMockCooks = () => {
+    const mockIds = ['cook-1', 'cook-2', 'cook-3', 'cook-4'];
+    setCooks((prev) => prev.filter((c) => !mockIds.includes(c.id)));
+    setMeals((prev) => prev.filter((m) => !mockIds.includes(m.cookId)));
+  };
+
+  const getCookSubscriptionPlans = (cookId: string): SubscriptionPlan[] => {
+    // Check localStorage backup first
+    try {
+      const saved = localStorage.getItem(`mealmitra_cook_plans_${cookId}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+
+    const cook =
+      cooks.find((c) => c.id === cookId) ||
+      (currentCookProfile.id === cookId ? currentCookProfile : null) ||
+      cooks[0];
+    if (cook && Array.isArray(cook.subscriptionPlans) && cook.subscriptionPlans.length > 0) {
+      return cook.subscriptionPlans;
+    }
+    const name = cook?.name || currentCookProfile.name || 'Home Kitchen';
+    const id = cook?.id || currentCookProfile.id || 'cook-default';
+    return getDefaultCookSubscriptionPlans(name, id);
+  };
+
+  const updateCookSubscriptionPlans = (cookId: string, plans: SubscriptionPlan[]) => {
+    setCooks((prev) => {
+      const exists = prev.some((c) => c.id === cookId);
+      if (exists) {
+        return prev.map((c) => (c.id === cookId ? { ...c, subscriptionPlans: plans } : c));
+      } else {
+        return [...prev, { ...currentCookProfile, id: cookId, subscriptionPlans: plans }];
+      }
+    });
+
+    try {
+      localStorage.setItem(`mealmitra_cook_plans_${cookId}`, JSON.stringify(plans));
+    } catch {}
+
+    addNotification({
+      title: 'Subscription Plans Published',
+      message: 'Your custom subscription plans and pricing are now live for customers.',
+      type: 'subscription',
+    });
+  };
+
   const updateUserSubscription = (updated: Partial<UserSubscription>) => {
-    setUserSubscription((prev) => (prev ? { ...prev, ...updated } : null));
+    setSubscriptions((prev) =>
+      prev.map((s) => {
+        const isTarget = userSubscription && s.id === userSubscription.id;
+        return isTarget ? { ...s, ...updated } : s;
+      })
+    );
   };
 
   const subscribeToPlan = (
     plan: SubscriptionPlan,
-    details: { address: string; lunchTiming: string; dinnerTiming: string }
+    details: {
+      cookId?: string;
+      cookName?: string;
+      cookAvatar?: string;
+      address: string;
+      officeAddress?: string;
+      lunchTiming: string;
+      dinnerTiming: string;
+      dietaryNotes?: string;
+    }
   ) => {
+    const totalMeals =
+      plan.type === 'Monthly'
+        ? plan.category.includes('Lunch + Dinner')
+          ? 52
+          : 26
+        : plan.category.includes('Lunch + Dinner')
+        ? 600
+        : 300;
+
+    const chosenCookName = details.cookName || currentCookProfile.name || 'Home Kitchen';
+    const chosenCookId = details.cookId || currentCookProfile.id || 'cook-1';
+    const chosenCookAvatar = details.cookAvatar || currentCookProfile.avatar;
+
+    const custName = currentUser?.name || 'Customer';
+    const custPhone = currentUser?.phone || '+91 98251 23456';
+    const custAvatar = currentUser?.avatar || '';
+
     const newSub: UserSubscription = {
-      id: `usr-sub-${Math.floor(100 + Math.random() * 900)}`,
+      id: `sub-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+      customerId: currentUser?.id || `usr-cust-${Date.now()}`,
+      customerName: custName,
+      customerPhone: custPhone,
+      customerAvatar: custAvatar,
       planId: plan.id,
       planName: plan.name,
       planCategory: plan.category,
-      cookName: 'Nirmala Devi',
-      cookAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=300&auto=format&fit=crop&q=80',
+      planPeriod: plan.type,
+      planPrice: plan.price,
+      paymentMethod: (details as any).paymentMethod || 'UPI / Online (Paid)',
+      cookId: chosenCookId,
+      cookName: chosenCookName,
+      cookAvatar: chosenCookAvatar,
       status: 'Active',
-      startDate: 'Today',
+      startDate: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       renewalDate: plan.type === 'Monthly' ? 'In 30 days' : 'In 365 days',
       remainingDays: plan.type === 'Monthly' ? 30 : 365,
-      deliveryAddress: details.address || 'Flat 402, Shivalik Heights, Bodakdev',
-      officeAddress: 'Tech Park B, 3rd Floor, SG Highway',
+      deliveryAddress: details.address || 'Home Delivery Address',
+      officeAddress: details.officeAddress || 'Workplace Delivery Address',
       lunchTiming: details.lunchTiming || '1:00 PM',
       dinnerTiming: details.dinnerTiming || '8:00 PM',
       mealsDeliveredCount: 0,
-      totalMealsCount: plan.type === 'Monthly' ? 26 : 300,
+      totalMealsCount: totalMeals,
       preferredMeals: ['Phulka Thali', 'Rajma Chawal', 'Paneer Tikka', 'Khichdi Kadhi'],
+      dietaryNotes: details.dietaryNotes || currentUser?.applicationDetails?.dietaryPreference || 'Fresh home spices, hygienic prep',
+      upcomingMeals: [
+        {
+          id: `up-1-${Date.now()}`,
+          date: 'Tomorrow',
+          dayName: 'Monday',
+          mealPeriod: 'Lunch',
+          mealName: 'Panchmel Dal Tadka with 4 Phulkas & Kachumber',
+          status: 'Scheduled',
+          cutoffTime: '10:30 AM',
+          isPastCutoff: false,
+        },
+        {
+          id: `up-2-${Date.now()}`,
+          date: 'In 2 days',
+          dayName: 'Tuesday',
+          mealPeriod: 'Lunch',
+          mealName: 'Slow-Cooked Kashmiri Rajma with Jeera Rice',
+          status: 'Scheduled',
+          cutoffTime: '10:30 AM',
+          isPastCutoff: false,
+        },
+        {
+          id: `up-3-${Date.now()}`,
+          date: 'In 3 days',
+          dayName: 'Wednesday',
+          mealPeriod: 'Lunch',
+          mealName: 'Paneer Makhani Homestyle & 3 Laccha Parathas',
+          status: 'Scheduled',
+          cutoffTime: '10:30 AM',
+          isPastCutoff: false,
+        },
+      ],
     };
-    setUserSubscription(newSub);
+
+    setSubscriptions((prev) => {
+      const filtered = prev.filter(
+        (s) =>
+          !(
+            (s.customerId && s.customerId === newSub.customerId) ||
+            (s.customerPhone && s.customerPhone === newSub.customerPhone)
+          )
+      );
+      return [newSub, ...filtered];
+    });
+
+    addNotification({
+      title: 'Subscription Activated',
+      message: `You have successfully subscribed to ${plan.name} with ${chosenCookName}!`,
+      type: 'subscription',
+    });
   };
 
   const addReview = (reviewData: Omit<Review, 'id' | 'date' | 'likes'>) => {
@@ -828,7 +1421,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCooks(MOCK_COOKS);
     setMeals(MOCK_MEALS);
     setOrders(MOCK_ORDERS);
-    setUserSubscription(MOCK_USER_SUBSCRIPTION);
+    setSubscriptions([MOCK_USER_SUBSCRIPTION]);
     setReviews(MOCK_REVIEWS);
     setDeliveryAssignments(MOCK_DELIVERY_ASSIGNMENTS);
     setClusterStops(MOCK_SMART_CLUSTER_STOPS);
@@ -857,17 +1450,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         meals,
         orders,
         subscriptionPlans,
+        subscriptions,
         userSubscription,
         reviews,
         deliveryAssignments,
         clusterStops,
         routeStops,
         deliveryPartnerState,
+        notifications,
         waitlist,
         activeCookId,
         setActiveCookId,
         currentCookProfile,
         toggleFollowCook,
+        addNotification,
+        markNotificationsAsRead,
+        clearNotifications,
         placeOrder,
         joinWaitlist,
         skipSubscriptionMeal,
@@ -879,6 +1477,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         removeCookWeeklyMealSlot,
         autofillCookWeeklyMenu,
         updateCookProfile,
+        addCook,
+        getCookSubscriptionPlans,
+        updateCookSubscriptionPlans,
         updateUserSubscription,
         subscribeToPlan,
         addReview,

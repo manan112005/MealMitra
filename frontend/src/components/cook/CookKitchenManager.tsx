@@ -37,10 +37,64 @@ export const CookKitchenManager: React.FC = () => {
 
   const handleMarkLunchSoldOut = () => {
     setLunchAvailableQty(0);
+    updateKitchenQuantities(
+      currentCookProfile.id,
+      0,
+      lunchTotalQty,
+      dinnerAvailableQty,
+      dinnerTotalQty
+    );
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2500);
+  };
+
+  const handlePublishLunchSlot = (customQty?: number) => {
+    const targetQty = customQty !== undefined ? customQty : (lunchAvailableQty === 0 ? lunchTotalQty : lunchAvailableQty);
+    const newTotal = Math.max(lunchTotalQty, targetQty);
+    setLunchAvailableQty(targetQty);
+    setLunchTotalQty(newTotal);
+    setKitchenOpen(true);
+    updateKitchenStatus(currentCookProfile.id, true);
+    updateKitchenQuantities(
+      currentCookProfile.id,
+      targetQty,
+      newTotal,
+      dinnerAvailableQty,
+      dinnerTotalQty
+    );
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2500);
   };
 
   const handleMarkDinnerSoldOut = () => {
     setDinnerAvailableQty(0);
+    updateKitchenQuantities(
+      currentCookProfile.id,
+      lunchAvailableQty,
+      lunchTotalQty,
+      0,
+      dinnerTotalQty
+    );
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2500);
+  };
+
+  const handlePublishDinnerSlot = (customQty?: number) => {
+    const targetQty = customQty !== undefined ? customQty : (dinnerAvailableQty === 0 ? dinnerTotalQty : dinnerAvailableQty);
+    const newTotal = Math.max(dinnerTotalQty, targetQty);
+    setDinnerAvailableQty(targetQty);
+    setDinnerTotalQty(newTotal);
+    setKitchenOpen(true);
+    updateKitchenStatus(currentCookProfile.id, true);
+    updateKitchenQuantities(
+      currentCookProfile.id,
+      lunchAvailableQty,
+      lunchTotalQty,
+      targetQty,
+      newTotal
+    );
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2500);
   };
 
   const handleResetDailyBatch = () => {
@@ -49,6 +103,10 @@ export const CookKitchenManager: React.FC = () => {
     setDinnerAvailableQty(20);
     setDinnerTotalQty(20);
     setKitchenOpen(true);
+    updateKitchenStatus(currentCookProfile.id, true);
+    updateKitchenQuantities(currentCookProfile.id, 25, 25, 20, 20);
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2500);
   };
 
   return (
@@ -142,29 +200,71 @@ export const CookKitchenManager: React.FC = () => {
               </span>
             </div>
 
-            {/* Stepper for Available Qty */}
+            {/* Direct Input & Stepper for Available Qty */}
             <div className="p-4 bg-[#faf9f8] rounded-xl border border-[#dcc1b1]/40 space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-[#1a1c1c]">Available to Order</span>
-                <div className="flex items-center gap-3">
+                <div>
+                  <span className="text-xs font-bold text-[#1a1c1c] block">Available to Order</span>
+                  <span className="text-[10px] text-[#564337]">Type any number directly</span>
+                </div>
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setLunchAvailableQty((q) => Math.max(0, q - 1))}
-                    className="w-8 h-8 rounded-lg border border-[#dcc1b1] flex items-center justify-center text-[#564337] hover:bg-white transition-colors"
+                    className="w-8 h-8 rounded-lg border border-[#dcc1b1] bg-white flex items-center justify-center text-[#564337] hover:bg-[#f2ece9] transition-colors"
                   >
                     <Minus className="w-3.5 h-3.5" />
                   </button>
-                  <span className="font-extrabold text-sm w-6 text-center">{lunchAvailableQty}</span>
+                  <input
+                    type="number"
+                    value={lunchAvailableQty}
+                    onChange={(e) => {
+                      const val = Math.max(0, parseInt(e.target.value) || 0);
+                      setLunchAvailableQty(val);
+                      if (val > lunchTotalQty) setLunchTotalQty(val);
+                    }}
+                    min={0}
+                    max={500}
+                    className="w-16 h-8 text-center font-extrabold text-sm bg-white border border-[#dcc1b1] rounded-lg text-[#1a1c1c] focus:outline-none focus:ring-2 focus:ring-[#944a00]"
+                  />
                   <button
                     type="button"
-                    onClick={() =>
-                      setLunchAvailableQty((q) => Math.min(lunchTotalQty, q + 1))
-                    }
-                    className="w-8 h-8 rounded-lg border border-[#dcc1b1] flex items-center justify-center text-[#564337] hover:bg-white transition-colors"
+                    onClick={() => {
+                      const nextVal = lunchAvailableQty + 1;
+                      setLunchAvailableQty(nextVal);
+                      if (nextVal > lunchTotalQty) setLunchTotalQty(nextVal);
+                    }}
+                    className="w-8 h-8 rounded-lg border border-[#dcc1b1] bg-white flex items-center justify-center text-[#564337] hover:bg-[#f2ece9] transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>
                 </div>
+              </div>
+
+              {/* Quick Preset Badges */}
+              <div className="flex items-center gap-1.5 pt-1">
+                <span className="text-[10px] text-[#564337] font-medium mr-1">Quick Add:</span>
+                {[1, 5, 10, 20].map((delta) => (
+                  <button
+                    key={delta}
+                    type="button"
+                    onClick={() => {
+                      const next = lunchAvailableQty + delta;
+                      setLunchAvailableQty(next);
+                      if (next > lunchTotalQty) setLunchTotalQty(next);
+                    }}
+                    className="px-2 py-0.5 bg-white hover:bg-[#ffdcc5]/50 border border-[#dcc1b1] text-[#944a00] text-[10px] font-bold rounded-md transition-colors"
+                  >
+                    +{delta}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setLunchAvailableQty(lunchTotalQty)}
+                  className="px-2 py-0.5 bg-white hover:bg-[#ffdcc5]/50 border border-[#dcc1b1] text-[#564337] text-[10px] font-bold rounded-md transition-colors ml-auto"
+                >
+                  All ({lunchTotalQty})
+                </button>
               </div>
 
               <div className="flex justify-between items-center pt-2 border-t border-[#dcc1b1]/30">
@@ -173,9 +273,9 @@ export const CookKitchenManager: React.FC = () => {
                   <input
                     type="number"
                     value={lunchTotalQty}
-                    onChange={(e) => setLunchTotalQty(Number(e.target.value))}
+                    onChange={(e) => setLunchTotalQty(Math.max(0, parseInt(e.target.value) || 0))}
                     min={1}
-                    max={100}
+                    max={500}
                     className="w-16 px-2 py-1 text-xs bg-white border border-[#dcc1b1] rounded-lg text-center font-bold"
                   />
                   <span className="text-xs text-[#564337]">meals</span>
@@ -183,13 +283,25 @@ export const CookKitchenManager: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
               <button
                 type="button"
                 onClick={handleMarkLunchSoldOut}
-                className="w-full py-2 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl border border-red-200 transition-colors"
+                className="py-2.5 px-3 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl border border-red-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
               >
-                Mark Lunch Sold Out
+                <span>Mark Lunch Sold Out</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePublishLunchSlot()}
+                className="py-2.5 px-3 bg-[#d1e6c9] hover:bg-[#b8d9ad] text-[#51634c] text-xs font-bold rounded-xl border border-[#51634c]/30 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                <span>
+                  {lunchAvailableQty === 0
+                    ? `Mark Available (${lunchTotalQty})`
+                    : `Publish Lunch (${lunchAvailableQty})`}
+                </span>
               </button>
             </div>
           </div>
@@ -215,29 +327,71 @@ export const CookKitchenManager: React.FC = () => {
               </span>
             </div>
 
-            {/* Stepper for Available Qty */}
+            {/* Direct Input & Stepper for Available Qty */}
             <div className="p-4 bg-[#faf9f8] rounded-xl border border-[#dcc1b1]/40 space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-[#1a1c1c]">Available to Order</span>
-                <div className="flex items-center gap-3">
+                <div>
+                  <span className="text-xs font-bold text-[#1a1c1c] block">Available to Order</span>
+                  <span className="text-[10px] text-[#564337]">Type any number directly</span>
+                </div>
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setDinnerAvailableQty((q) => Math.max(0, q - 1))}
-                    className="w-8 h-8 rounded-lg border border-[#dcc1b1] flex items-center justify-center text-[#564337] hover:bg-white transition-colors"
+                    className="w-8 h-8 rounded-lg border border-[#dcc1b1] bg-white flex items-center justify-center text-[#564337] hover:bg-[#f2ece9] transition-colors"
                   >
                     <Minus className="w-3.5 h-3.5" />
                   </button>
-                  <span className="font-extrabold text-sm w-6 text-center">{dinnerAvailableQty}</span>
+                  <input
+                    type="number"
+                    value={dinnerAvailableQty}
+                    onChange={(e) => {
+                      const val = Math.max(0, parseInt(e.target.value) || 0);
+                      setDinnerAvailableQty(val);
+                      if (val > dinnerTotalQty) setDinnerTotalQty(val);
+                    }}
+                    min={0}
+                    max={500}
+                    className="w-16 h-8 text-center font-extrabold text-sm bg-white border border-[#dcc1b1] rounded-lg text-[#1a1c1c] focus:outline-none focus:ring-2 focus:ring-[#51634c]"
+                  />
                   <button
                     type="button"
-                    onClick={() =>
-                      setDinnerAvailableQty((q) => Math.min(dinnerTotalQty, q + 1))
-                    }
-                    className="w-8 h-8 rounded-lg border border-[#dcc1b1] flex items-center justify-center text-[#564337] hover:bg-white transition-colors"
+                    onClick={() => {
+                      const nextVal = dinnerAvailableQty + 1;
+                      setDinnerAvailableQty(nextVal);
+                      if (nextVal > dinnerTotalQty) setDinnerTotalQty(nextVal);
+                    }}
+                    className="w-8 h-8 rounded-lg border border-[#dcc1b1] bg-white flex items-center justify-center text-[#564337] hover:bg-[#f2ece9] transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>
                 </div>
+              </div>
+
+              {/* Quick Preset Badges */}
+              <div className="flex items-center gap-1.5 pt-1">
+                <span className="text-[10px] text-[#564337] font-medium mr-1">Quick Add:</span>
+                {[1, 5, 10, 20].map((delta) => (
+                  <button
+                    key={delta}
+                    type="button"
+                    onClick={() => {
+                      const next = dinnerAvailableQty + delta;
+                      setDinnerAvailableQty(next);
+                      if (next > dinnerTotalQty) setDinnerTotalQty(next);
+                    }}
+                    className="px-2 py-0.5 bg-white hover:bg-[#d1e6c9]/50 border border-[#dcc1b1] text-[#51634c] text-[10px] font-bold rounded-md transition-colors"
+                  >
+                    +{delta}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setDinnerAvailableQty(dinnerTotalQty)}
+                  className="px-2 py-0.5 bg-white hover:bg-[#d1e6c9]/50 border border-[#dcc1b1] text-[#564337] text-[10px] font-bold rounded-md transition-colors ml-auto"
+                >
+                  All ({dinnerTotalQty})
+                </button>
               </div>
 
               <div className="flex justify-between items-center pt-2 border-t border-[#dcc1b1]/30">
@@ -246,9 +400,9 @@ export const CookKitchenManager: React.FC = () => {
                   <input
                     type="number"
                     value={dinnerTotalQty}
-                    onChange={(e) => setDinnerTotalQty(Number(e.target.value))}
+                    onChange={(e) => setDinnerTotalQty(Math.max(0, parseInt(e.target.value) || 0))}
                     min={1}
-                    max={100}
+                    max={500}
                     className="w-16 px-2 py-1 text-xs bg-white border border-[#dcc1b1] rounded-lg text-center font-bold"
                   />
                   <span className="text-xs text-[#564337]">meals</span>
@@ -256,13 +410,25 @@ export const CookKitchenManager: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
               <button
                 type="button"
                 onClick={handleMarkDinnerSoldOut}
-                className="w-full py-2 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl border border-red-200 transition-colors"
+                className="py-2.5 px-3 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl border border-red-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
               >
-                Mark Dinner Sold Out
+                <span>Mark Dinner Sold Out</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePublishDinnerSlot()}
+                className="py-2.5 px-3 bg-[#d1e6c9] hover:bg-[#b8d9ad] text-[#51634c] text-xs font-bold rounded-xl border border-[#51634c]/30 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                <span>
+                  {dinnerAvailableQty === 0
+                    ? `Mark Available (${dinnerTotalQty})`
+                    : `Publish Dinner (${dinnerAvailableQty})`}
+                </span>
               </button>
             </div>
           </div>
@@ -272,7 +438,7 @@ export const CookKitchenManager: React.FC = () => {
         <div className="flex justify-end pt-2">
           <button
             type="submit"
-            className="px-8 py-3.5 bg-[#944a00] hover:bg-[#713700] text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-2 transition-all active:scale-95"
+            className="px-8 py-3.5 bg-[#944a00] hover:bg-[#713700] text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
           >
             <Save className="w-4 h-4" />
             <span>Save & Publish Live Capacity</span>

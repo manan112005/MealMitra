@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserRole } from '../types';
+import { AuthService, AuthUserResponse } from '../services/auth.service';
+import { api } from '../services/api';
 
 export interface AuthUser {
   id: string;
@@ -30,44 +32,104 @@ export const MOCK_AVATARS = [
   'https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=150&auto=format&fit=crop&q=80',
 ];
 
-export const DEFAULT_SEED_USERS: AuthUser[] = [
+export const getSavedAvatarForUser = (identifier?: string): string => {
+  if (!identifier) return '';
+  try {
+    const clean = identifier.trim().toLowerCase();
+    const key1 = 'mealmitra_avatar_' + clean;
+    const fromKey1 = localStorage.getItem(key1);
+    if (fromKey1) return fromKey1;
+
+    const norm = normalizePhone(identifier);
+    if (norm) {
+      const fromNorm = localStorage.getItem('mealmitra_avatar_' + norm);
+      if (fromNorm) return fromNorm;
+    }
+
+    // Check mealmitra_registered_users
+    const savedUsersStr = localStorage.getItem('mealmitra_registered_users');
+    if (savedUsersStr) {
+      const list = JSON.parse(savedUsersStr) as AuthUser[];
+      const found = list.find(
+        (u) =>
+          (u.email && u.email.toLowerCase() === clean) ||
+          (u.id && u.id.toLowerCase() === clean) ||
+          (norm && u.phone && normalizePhone(u.phone) === norm)
+      );
+      if (found && found.avatar) return found.avatar;
+    }
+
+    // Check mealmitra_currentUser
+    const currentSaved = localStorage.getItem('mealmitra_currentUser');
+    if (currentSaved) {
+      const u = JSON.parse(currentSaved) as AuthUser;
+      if (
+        (u.email && u.email.toLowerCase() === clean) ||
+        (u.id && u.id.toLowerCase() === clean) ||
+        (norm && u.phone && normalizePhone(u.phone) === norm)
+      ) {
+        if (u.avatar) return u.avatar;
+      }
+    }
+  } catch {}
+  return '';
+};
+
+export const saveAvatarForUser = (identifier: string, avatar: string) => {
+  if (!identifier || !avatar) return;
+  try {
+    const cleanId = identifier.trim().toLowerCase();
+    localStorage.setItem('mealmitra_avatar_' + cleanId, avatar);
+    const norm = normalizePhone(identifier);
+    if (norm) {
+      localStorage.setItem('mealmitra_avatar_' + norm, avatar);
+    }
+
+    // Also update any saved registered users in localStorage so it stays 100% in sync
+    const savedUsersStr = localStorage.getItem('mealmitra_registered_users');
+    if (savedUsersStr) {
+      const list = JSON.parse(savedUsersStr) as AuthUser[];
+      const updated = list.map((u) => {
+        const matches =
+          (u.email && u.email.toLowerCase() === cleanId) ||
+          (u.id && u.id.toLowerCase() === cleanId) ||
+          (norm && u.phone && normalizePhone(u.phone) === norm);
+        return matches ? { ...u, avatar } : u;
+      });
+      localStorage.setItem('mealmitra_registered_users', JSON.stringify(updated));
+    }
+
+    // Also update saved currentUser if active
+    const savedCurrent = localStorage.getItem('mealmitra_currentUser');
+    if (savedCurrent) {
+      const u = JSON.parse(savedCurrent) as AuthUser;
+      const matches =
+        (u.email && u.email.toLowerCase() === cleanId) ||
+        (u.id && u.id.toLowerCase() === cleanId) ||
+        (norm && u.phone && normalizePhone(u.phone) === norm);
+      if (matches) {
+        localStorage.setItem('mealmitra_currentUser', JSON.stringify({ ...u, avatar }));
+      }
+    }
+  } catch (e) {
+    console.error('Failed to save avatar to localStorage', e);
+  }
+};
+
+export const getDeterministicAvatar = (name: string): string => {
+  const initial = name ? name.trim().charAt(0).toUpperCase() : 'U';
+  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><rect width="100%" height="100%" fill="%23ffdcc5"/><text x="50%" y="54%" font-size="44" font-weight="bold" fill="%23944a00" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif">${initial}</text></svg>`;
+};
+
+export const getFreshSeedUsers = (): AuthUser[] => [
   {
-    id: 'usr-cook-1',
-    name: 'Nirmala Devi',
-    email: 'nirmala.kitchen@example.com',
-    phone: '9876543210',
-    role: 'cook',
-    status: 'approved',
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
-    applicationDetails: {
-      kitchenAddress: 'B-12 Krishna Kunj, Sector 14, Navrangpura',
-      city: 'Ahmedabad',
-      foodCategory: 'Vegetarian Only',
-      kitchenName: "Nirmala Devi's Kitchen",
-    },
-  },
-  {
-    id: 'usr-delivery-1',
-    name: 'Ramesh Patel',
-    email: 'ramesh.delivery@example.com',
-    phone: '9898011223',
-    role: 'delivery',
-    status: 'approved',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-    applicationDetails: {
-      residentialAddress: 'C-104, Shanti Nagar, SG Highway',
-      city: 'Ahmedabad',
-      vehicleType: 'Motorcycle',
-    },
-  },
-  {
-    id: 'usr-cust-1',
-    name: 'Jay Shah',
-    email: 'jay.shah@example.com',
+    id: 'usr-manan-1',
+    name: 'MANAN PATEL',
+    email: 'patelmanan4057@gmail.com',
     phone: '9825123456',
     role: 'customer',
     status: 'approved',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+    avatar: getSavedAvatarForUser('patelmanan4057@gmail.com') || getDeterministicAvatar('MANAN PATEL'),
     applicationDetails: {
       address: 'A-402, Shivalik Residency, Navrangpura',
       city: 'Ahmedabad',
@@ -75,16 +137,95 @@ export const DEFAULT_SEED_USERS: AuthUser[] = [
     },
   },
   {
-    id: 'usr-admin-1',
-    name: 'Admin Manager',
-    email: 'admin@mealmitra.com',
-    phone: '9999999999',
-    role: 'admin',
+    id: 'usr-manan-2',
+    name: 'Manan (Personal)',
+    email: 'manan.personal@gmail.com',
+    phone: '9876543210',
+    role: 'customer',
     status: 'approved',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+    avatar: getSavedAvatarForUser('manan.personal@gmail.com') || getDeterministicAvatar('Manan (Personal)'),
     applicationDetails: {},
   },
 ];
+
+export const DEFAULT_SEED_USERS: AuthUser[] = getFreshSeedUsers();
+
+// Helper to map backend role string to frontend portal role
+function mapBackendRoleToFrontend(role: string): UserRole {
+  switch (role?.toUpperCase()) {
+    case 'CHEF':
+      return 'cook';
+    case 'DELIVERY':
+      return 'delivery';
+    case 'ADMIN':
+      return 'admin';
+    case 'CUSTOMER':
+    default:
+      return 'customer';
+  }
+}
+
+// Helper to map backend user object to frontend AuthUser
+function mapBackendUserToAuthUser(user: AuthUserResponse, existing?: AuthUser | null): AuthUser {
+  let savedAvatar =
+    getSavedAvatarForUser(user.email) ||
+    getSavedAvatarForUser(user.id) ||
+    (user.phone ? getSavedAvatarForUser(user.phone) : '') ||
+    user.chefProfile?.profileImage ||
+    user.customerProfile?.profileImage ||
+    user.deliveryProfile?.profileImage;
+
+  if (!savedAvatar && existing?.avatar) {
+    savedAvatar = existing.avatar;
+  }
+
+  if (!savedAvatar) {
+    try {
+      const savedUsersStr = localStorage.getItem('mealmitra_registered_users');
+      if (savedUsersStr) {
+        const savedUsers = JSON.parse(savedUsersStr) as AuthUser[];
+        const match = savedUsers.find(
+          (u) =>
+            u.id === user.id ||
+            (u.email && user.email && u.email.toLowerCase() === user.email.toLowerCase()) ||
+            (u.phone && user.phone && normalizePhone(u.phone) === normalizePhone(user.phone))
+        );
+        if (match && match.avatar) {
+          savedAvatar = match.avatar;
+        }
+      }
+    } catch {}
+  }
+
+  if (!savedAvatar) {
+    savedAvatar = getDeterministicAvatar(user.fullName || 'User');
+  }
+
+  return {
+    id: user.id,
+    name: user.fullName || existing?.name || 'User',
+    email: user.email || existing?.email || '',
+    phone: user.phone || existing?.phone || '',
+    role: mapBackendRoleToFrontend(user.role),
+    status: user.isActive ? 'approved' : 'suspended',
+    avatar: savedAvatar,
+    applicationDetails: {
+      ...(existing?.applicationDetails || {}),
+      ...(user.customerProfile || {}),
+      ...(user.chefProfile || {}),
+      ...(user.deliveryProfile || {}),
+    },
+  };
+}
+
+
+
+export interface GoogleAccountProfile {
+  name: string;
+  email: string;
+  avatar?: string;
+  role?: UserRole;
+}
 
 interface AuthContextType {
   currentUser: AuthUser | null;
@@ -100,11 +241,12 @@ interface AuthContextType {
     password?: string;
     applicationDetails?: any;
   }) => Promise<{ success: boolean; user?: AuthUser; error?: string }>;
-  signup: (userData: Omit<AuthUser, 'id' | 'avatar' | 'status'>) => { success: boolean; error?: string };
-  loginWithEmail: (email: string, password: string) => { user?: AuthUser; error?: string };
-  loginWithGoogle: (role?: UserRole) => void;
+  signup: (userData: Omit<AuthUser, 'id' | 'avatar' | 'status'>) => Promise<{ success: boolean; error?: string }>;
+  loginWithEmail: (email: string, password: string) => Promise<{ user?: AuthUser; error?: string }>;
+  loginWithGoogle: (account?: GoogleAccountProfile | UserRole) => Promise<{ success: boolean; user?: AuthUser }>;
   updateUserStatus: (userId: string, newStatus: AuthUser['status']) => void;
-  logout: () => void;
+  updateUserProfile: (updated: Partial<AuthUser>) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -114,78 +256,111 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const savedUser = localStorage.getItem('mealmitra_currentUser');
       return savedUser ? JSON.parse(savedUser) : null;
-    } catch (e) {
+    } catch {
       return null;
     }
   });
 
   const [users, setUsers] = useState<AuthUser[]>(() => {
     try {
-      const savedUsers = localStorage.getItem('mealmitra_users');
-      const parsed: AuthUser[] = savedUsers ? JSON.parse(savedUsers) : [];
-      // Merge with default seed users so known demo accounts are always available
-      const merged = [...parsed];
-      for (const def of DEFAULT_SEED_USERS) {
-        const defPhoneNorm = normalizePhone(def.phone);
-        const exists = merged.some((u) => normalizePhone(u.phone) === defPhoneNorm);
-        if (!exists) {
-          merged.push(def);
-        }
+      const savedUsers = localStorage.getItem('mealmitra_registered_users');
+      const fakeEmails = [
+        'ramesh.delivery@example.com',
+        'jay.shah@example.com',
+        'admin@mealmitra.com',
+        'manan.work@gmail.com',
+        'nirmala@mealmitra.com',
+      ];
+      const fakeIds = ['usr-delivery-1', 'usr-cust-1', 'usr-admin-1', 'usr-cook-1'];
+      const fakeNames = ['Ramesh Patel', 'Jay Shah', 'Admin Manager', 'Nirmala Devi', 'MealMitra User'];
+
+      let parsed: AuthUser[] = [];
+      if (savedUsers) {
+        parsed = JSON.parse(savedUsers) as AuthUser[];
       }
-      return merged;
+
+      const filteredParsed = parsed.filter(
+        (u) =>
+          !fakeEmails.includes(u.email?.toLowerCase()) &&
+          !fakeIds.includes(u.id) &&
+          !fakeNames.includes(u.name)
+      );
+
+      // Start with seed users map, and override with saved users and persistent avatars
+      const userMap = new Map<string, AuthUser>();
+      
+      DEFAULT_SEED_USERS.forEach((seed) => {
+        const customAvatar = getSavedAvatarForUser(seed.email) || seed.avatar;
+        userMap.set(seed.email.toLowerCase(), { ...seed, avatar: customAvatar });
+      });
+
+      filteredParsed.forEach((saved) => {
+        const key = (saved.email || saved.id).toLowerCase();
+        const existingSeed = userMap.get(key);
+        const customAvatar = getSavedAvatarForUser(saved.email) || getSavedAvatarForUser(saved.id) || saved.avatar;
+        userMap.set(key, {
+          ...(existingSeed || {}),
+          ...saved,
+          avatar: customAvatar || saved.avatar,
+        });
+      });
+
+      const combined = Array.from(userMap.values());
+      localStorage.setItem('mealmitra_registered_users', JSON.stringify(combined));
+      return combined;
     } catch (e) {
-      return DEFAULT_SEED_USERS;
+      console.error('Failed to load registered users from storage', e);
     }
+    return DEFAULT_SEED_USERS;
   });
 
-  // Sync users with backend DB on initial mount
+
+
+  // Save registered users list whenever updated
   useEffect(() => {
-    const fetchBackendUsers = async () => {
+    try {
+      localStorage.setItem('mealmitra_registered_users', JSON.stringify(users));
+    } catch (e) {
+      console.error('Failed to save registered users to storage', e);
+    }
+  }, [users]);
+
+  // Validate session against backend JWT on initial load
+  useEffect(() => {
+    const verifyBackendSession = async () => {
+      const token = api.getAccessToken();
+      if (!token) return;
+
       try {
-        const res = await fetch('/api/auth/users');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && Array.isArray(data.users)) {
-            setUsers((prev) => {
-              const combined = [...prev];
-              for (const bu of data.users) {
-                const buNorm = normalizePhone(bu.phone);
-                const idx = combined.findIndex((u) => normalizePhone(u.phone) === buNorm);
-                if (idx === -1) {
-                  combined.push({
-                    id: bu.id,
-                    name: bu.name,
-                    email: bu.email,
-                    phone: bu.phone,
-                    role: bu.role,
-                    status: bu.status || 'approved',
-                    avatar: bu.avatar,
-                    applicationDetails: bu.details || {},
-                  });
-                }
-              }
-              return combined;
-            });
+        const res = await AuthService.getMe();
+        if (res.success && res.data) {
+          let currentSaved: AuthUser | null = currentUser;
+          if (!currentSaved) {
+            try {
+              const savedStr = localStorage.getItem('mealmitra_currentUser');
+              if (savedStr) currentSaved = JSON.parse(savedStr);
+            } catch {}
           }
+          const authUser = mapBackendUserToAuthUser(res.data, currentSaved);
+          setCurrentUser(authUser);
+          localStorage.setItem('mealmitra_currentUser', JSON.stringify(authUser));
         }
-      } catch (err) {
-        // Backend might be offline or using local fallback
+      } catch {
+        // Backend offline or token difference - preserve local user session from localStorage
+        console.warn('Backend getMe check skipped, preserving local session.');
       }
     };
-    fetchBackendUsers();
+
+    verifyBackendSession();
   }, []);
+
 
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('mealmitra_currentUser', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('mealmitra_currentUser');
+      localStorage.setItem('mealmitra_role', currentUser.role);
     }
   }, [currentUser]);
-
-  useEffect(() => {
-    localStorage.setItem('mealmitra_users', JSON.stringify(users));
-  }, [users]);
 
   const findUserByPhone = (phone: string): AuthUser | undefined => {
     const norm = normalizePhone(phone);
@@ -197,38 +372,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const norm = normalizePhone(phone);
     if (!norm) return { exists: false };
 
-    // Check local memory first
+    // 1. Check local state (loaded from localStorage and seed accounts)
     const localUser = users.find((u) => normalizePhone(u.phone) === norm);
     if (localUser) {
       return { exists: true, user: localUser };
     }
 
-    // Check backend API
+    // 2. Query backend to check if phone exists in DB
     try {
-      const res = await fetch('/api/auth/check-phone', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: norm }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.exists && data.user) {
-          const backendUser: AuthUser = {
-            id: data.user.id,
-            name: data.user.name,
-            email: data.user.email,
-            phone: data.user.phone,
-            role: data.user.role,
-            status: data.user.status || 'approved',
-            avatar: data.user.avatar,
-            applicationDetails: data.user.details || {},
-          };
-          setUsers((prev) => [...prev, backendUser]);
-          return { exists: true, user: backendUser };
-        }
+      const res = await AuthService.checkPhone(norm);
+      if (res.success && res.data?.exists && res.data?.user) {
+        const authUser = mapBackendUserToAuthUser(res.data.user);
+        setUsers((prev) => {
+          if (!prev.some((u) => normalizePhone(u.phone) === norm)) {
+            return [...prev, authUser];
+          }
+          return prev;
+        });
+        return { exists: true, user: authUser };
       }
-    } catch (e) {
-      // Backend request failed, rely on local state
+    } catch {
+      // Backend not reachable or error
     }
 
     return { exists: false };
@@ -244,52 +408,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { error: 'Please enter a valid 4-digit verification code.' };
     }
 
-    // Check if phone exists locally
-    let user = users.find((u) => normalizePhone(u.phone) === norm);
+    // Attempt backend login with phone and default/provided password if exists
+    try {
+      const res = await AuthService.login({ phone: norm, password: 'Password123!' });
+      if (res.success && res.data?.user) {
+        const authUser = mapBackendUserToAuthUser(res.data.user);
+        const persistedAvatar =
+          getSavedAvatarForUser(authUser.email) ||
+          getSavedAvatarForUser(authUser.phone) ||
+          getSavedAvatarForUser(authUser.id) ||
+          authUser.avatar;
+        const mergedAuthUser = { ...authUser, avatar: persistedAvatar };
+        setCurrentUser(mergedAuthUser);
+        localStorage.setItem('mealmitra_currentUser', JSON.stringify(mergedAuthUser));
+        setUsers((prev) => {
+          if (!prev.some((u) => normalizePhone(u.phone) === norm)) {
+            return [...prev, mergedAuthUser];
+          }
+          return prev.map((u) => (normalizePhone(u.phone) === norm ? mergedAuthUser : u));
+        });
+        return { user: mergedAuthUser };
+      }
+    } catch {
+      // Local fallback
+    }
 
-    // If not found in local memory, check backend
+    let user = users.find((u) => normalizePhone(u.phone) === norm);
     if (!user) {
       try {
-        const res = await fetch('/api/auth/login-otp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: norm, otp }),
-        });
-        const data = await res.json();
-        if (res.ok && data.success && data.user) {
-          user = {
-            id: data.user.id,
-            name: data.user.name,
-            email: data.user.email,
-            phone: data.user.phone,
-            role: data.user.role,
-            status: data.user.status || 'approved',
-            avatar: data.user.avatar,
-            applicationDetails: data.user.details || {},
-          };
-          setUsers((prev) => [...prev, user!]);
-        } else if (res.status === 404) {
-          return { error: 'No account found with this phone number. Please register first.' };
+        const savedUsers = localStorage.getItem('mealmitra_registered_users');
+        if (savedUsers) {
+          const parsed = JSON.parse(savedUsers) as AuthUser[];
+          user = parsed.find((u) => normalizePhone(u.phone) === norm);
         }
-      } catch (e) {
-        // Fallback below
-      }
+      } catch {}
     }
 
     if (!user) {
       return { error: 'No account found with this phone number. Please register first.' };
     }
 
-    if (user.status === 'rejected') {
-      return { error: 'Your account has been rejected. Please contact support.' };
-    }
-    if (user.status === 'suspended') {
-      return { error: 'Your account is suspended. Please contact support.' };
-    }
-
-    // Success: user is verified, retrieve their stored role and log them in
-    setCurrentUser(user);
-    return { user };
+    const persistedAvatar =
+      getSavedAvatarForUser(user.email) ||
+      getSavedAvatarForUser(user.phone) ||
+      getSavedAvatarForUser(user.id) ||
+      user.avatar;
+    const mergedUser = { ...user, avatar: persistedAvatar };
+    setCurrentUser(mergedUser);
+    localStorage.setItem('mealmitra_currentUser', JSON.stringify(mergedUser));
+    return { user: mergedUser };
   };
 
   const registerUser = async (userData: {
@@ -305,106 +472,210 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: 'Please enter a valid 10-digit phone number.' };
     }
 
-    // Check if user already exists
-    const existing = users.find((u) => normalizePhone(u.phone) === norm);
-    if (existing) {
-      return {
-        success: false,
-        error: 'This phone number is already registered. Please log in instead.',
-      };
+    const backendRole =
+      userData.role === 'cook' ? 'CHEF' : userData.role === 'delivery' ? 'DELIVERY' : 'CUSTOMER';
+
+    const generatedEmail =
+      userData.email?.trim() || `${userData.role}_${norm}_${Date.now()}@mealmitra.com`;
+    const password = userData.password || 'Password123!';
+
+    try {
+      const res = await AuthService.register({
+        fullName: userData.name.trim() || 'User',
+        email: generatedEmail,
+        phone: norm,
+        password,
+        role: backendRole,
+        kitchenName: userData.applicationDetails?.kitchenName,
+        cuisine: userData.applicationDetails?.foodCategory,
+        vehicleType: userData.applicationDetails?.vehicleType,
+        address: userData.applicationDetails?.kitchenAddress || userData.applicationDetails?.address,
+        city: userData.applicationDetails?.city,
+      });
+
+      if (res.success && res.data?.user) {
+        const authUser = mapBackendUserToAuthUser(res.data.user, {
+          name: userData.name.trim() || 'User',
+          avatar: getDeterministicAvatar(userData.name.trim() || 'User'),
+        } as any);
+        setCurrentUser(authUser);
+        setUsers((prev) => {
+          const filtered = prev.filter((u) => normalizePhone(u.phone) !== norm);
+          return [...filtered, authUser];
+        });
+        return { success: true, user: authUser };
+      }
+    } catch (err: any) {
+      // If user already exists in DB, attempt login or seamless sign-in
+      if (err.message && err.message.toLowerCase().includes('already exists')) {
+        try {
+          const loginRes = await AuthService.login({ phone: norm, password });
+          if (loginRes.success && loginRes.data?.user) {
+            const authUser = mapBackendUserToAuthUser(loginRes.data.user);
+            setCurrentUser(authUser);
+            setUsers((prev) => [...prev, authUser]);
+            return { success: true, user: authUser };
+          }
+        } catch {
+          // If login fails, surface message
+        }
+        return { success: false, error: err.message };
+      }
     }
 
+    // Local fallback with persistent storage
     const newUser: AuthUser = {
       id: `usr-${Date.now()}`,
       name: userData.name.trim() || 'User',
-      email: userData.email?.trim() || `${userData.role}_${Date.now()}@mealmitra.com`,
+      email: generatedEmail,
       phone: norm,
       role: userData.role,
-      password: userData.password,
-      status: 'approved', // Auto-approved for frictionless dashboard access
-      avatar: MOCK_AVATARS[Math.floor(Math.random() * MOCK_AVATARS.length)],
+      password,
+      status: 'approved',
+      avatar: getDeterministicAvatar(userData.name.trim() || 'User'),
       applicationDetails: userData.applicationDetails || {},
     };
 
-    // Save in local state and localStorage
-    setUsers((prev) => [...prev, newUser]);
+    setUsers((prev) => {
+      const filtered = prev.filter((u) => normalizePhone(u.phone) !== norm);
+      return [...filtered, newUser];
+    });
     setCurrentUser(newUser);
-
-    // Persist to backend SQLite DB
-    try {
-      await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: newUser.id,
-          name: newUser.name,
-          email: newUser.email,
-          phone: newUser.phone,
-          role: newUser.role,
-          avatar: newUser.avatar,
-          status: newUser.status,
-          details: newUser.applicationDetails,
-        }),
-      });
-    } catch (e) {
-      // Backend call failed, but local registration succeeded
-    }
-
+    localStorage.setItem('mealmitra_currentUser', JSON.stringify(newUser));
     return { success: true, user: newUser };
   };
 
-  // Backwards compatible signup method
-  const signup = (userData: Omit<AuthUser, 'id' | 'avatar' | 'status'>) => {
-    const norm = normalizePhone(userData.phone);
-    const existing = users.find((u) => normalizePhone(u.phone) === norm);
-    if (existing) {
-      return { success: false, error: 'This phone number is already registered. Please log in instead.' };
-    }
-
-    const newUser: AuthUser = {
-      ...userData,
-      phone: norm,
-      id: `usr-${Date.now()}`,
-      avatar: MOCK_AVATARS[Math.floor(Math.random() * MOCK_AVATARS.length)],
-      status: 'approved',
-    };
-
-    setUsers((prev) => [...prev, newUser]);
-    setCurrentUser(newUser);
-    return { success: true };
+  const signup = async (userData: Omit<AuthUser, 'id' | 'avatar' | 'status'>) => {
+    return registerUser({
+      phone: userData.phone,
+      role: userData.role === 'admin' || userData.role === 'entry' ? 'customer' : userData.role,
+      name: userData.name,
+      email: userData.email,
+      password: userData.password,
+      applicationDetails: userData.applicationDetails,
+    });
   };
 
-  const loginWithEmail = (email: string, password: string) => {
-    const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
-    if (user) {
-      if (user.status === 'rejected') return { error: 'Your application has been rejected.' };
-      if (user.status === 'suspended') return { error: 'Your account is suspended.' };
-
-      setCurrentUser(user);
-      return { user };
+  const loginWithEmail = async (email: string, password: string): Promise<{ user?: AuthUser; error?: string }> => {
+    try {
+      const res = await AuthService.login({ email, password });
+      if (res.success && res.data?.user) {
+        const authUser = mapBackendUserToAuthUser(res.data.user);
+        const persistedAvatar =
+          getSavedAvatarForUser(authUser.email) ||
+          getSavedAvatarForUser(authUser.phone) ||
+          getSavedAvatarForUser(authUser.id) ||
+          authUser.avatar;
+        const mergedAuthUser = { ...authUser, avatar: persistedAvatar };
+        setCurrentUser(mergedAuthUser);
+        localStorage.setItem('mealmitra_currentUser', JSON.stringify(mergedAuthUser));
+        return { user: mergedAuthUser };
+      }
+    } catch (err: any) {
+      // Local fallback
     }
+
+    // Local fallback for seed demo accounts
+    const localUser = users.find(
+      (u) => u.email.toLowerCase() === email.toLowerCase() && (u.password === password || !u.password)
+    );
+    if (localUser) {
+      const persistedAvatar =
+        getSavedAvatarForUser(localUser.email) ||
+        getSavedAvatarForUser(localUser.phone) ||
+        getSavedAvatarForUser(localUser.id) ||
+        localUser.avatar;
+      const mergedLocal = { ...localUser, avatar: persistedAvatar };
+      setCurrentUser(mergedLocal);
+      localStorage.setItem('mealmitra_currentUser', JSON.stringify(mergedLocal));
+      return { user: mergedLocal };
+    }
+
     return { error: 'Invalid email or password.' };
   };
 
-  const loginWithGoogle = (targetRole: UserRole = 'customer') => {
-    // If a default user exists for this role, log in as them, or create a demo user
-    const existing = users.find((u) => u.role === targetRole);
-    if (existing) {
-      setCurrentUser(existing);
-      return;
+  const loginWithGoogle = async (
+    account?: GoogleAccountProfile | UserRole
+  ): Promise<{ success: boolean; user?: AuthUser }> => {
+    let targetProfile: GoogleAccountProfile;
+
+    if (typeof account === 'string') {
+      const existing = users.find((u) => u.role === account);
+      if (existing) {
+        const persistedAvatar =
+          getSavedAvatarForUser(existing.email) ||
+          getSavedAvatarForUser(existing.id) ||
+          existing.avatar;
+        const merged = { ...existing, avatar: persistedAvatar };
+        setCurrentUser(merged);
+        localStorage.setItem('mealmitra_currentUser', JSON.stringify(merged));
+        return { success: true, user: merged };
+      }
+      targetProfile = {
+        name: account === 'admin' ? 'Admin Manager' : 'Google User',
+        email: account === 'admin' ? 'admin@mealmitra.com' : `googleuser_${Date.now()}@gmail.com`,
+        role: account as UserRole,
+        avatar: MOCK_AVATARS[0],
+      };
+    } else if (account && typeof account === 'object') {
+      targetProfile = account;
+    } else {
+      targetProfile = {
+        name: 'Google User',
+        email: `googleuser_${Date.now()}@gmail.com`,
+        role: 'customer',
+        avatar: MOCK_AVATARS[0],
+      };
     }
 
-    const googleUser: AuthUser = {
-      id: `usr-${Date.now()}`,
-      name: 'Google User',
-      email: `googleuser_${Date.now()}@gmail.com`,
-      phone: '9999900000',
-      role: targetRole,
+    const emailLower = targetProfile.email.toLowerCase();
+
+    // Check if account already exists in state or storage
+    const existing = users.find(
+      (u) => u.email.toLowerCase() === emailLower
+    );
+
+    const persistedAvatar =
+      getSavedAvatarForUser(targetProfile.email) ||
+      (existing ? getSavedAvatarForUser(existing.id) : '') ||
+      (existing ? getSavedAvatarForUser(existing.phone) : '') ||
+      (existing ? existing.avatar : '') ||
+      targetProfile.avatar ||
+      getDeterministicAvatar(targetProfile.name);
+
+    if (existing) {
+      const updatedExisting: AuthUser = {
+        ...existing,
+        avatar: persistedAvatar,
+      };
+      if (persistedAvatar && updatedExisting.email) {
+        saveAvatarForUser(updatedExisting.email, persistedAvatar);
+      }
+      setCurrentUser(updatedExisting);
+      localStorage.setItem('mealmitra_currentUser', JSON.stringify(updatedExisting));
+      return { success: true, user: updatedExisting };
+    }
+
+    // Create a new user corresponding to the selected Google account
+    const newUser: AuthUser = {
+      id: `usr-g-${Date.now()}`,
+      name: targetProfile.name,
+      email: targetProfile.email,
+      phone: '',
+      role: targetProfile.role || 'customer',
       status: 'approved',
-      avatar: MOCK_AVATARS[0],
+      avatar: persistedAvatar,
+      applicationDetails: {},
     };
-    setUsers((prev) => [...prev, googleUser]);
-    setCurrentUser(googleUser);
+
+    if (newUser.avatar && newUser.email) {
+      saveAvatarForUser(newUser.email, newUser.avatar);
+    }
+
+    setUsers((prev) => [...prev, newUser]);
+    setCurrentUser(newUser);
+    localStorage.setItem('mealmitra_currentUser', JSON.stringify(newUser));
+    return { success: true, user: newUser };
   };
 
   const updateUserStatus = (userId: string, newStatus: AuthUser['status']) => {
@@ -414,9 +685,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = () => {
+  const updateUserProfile = async (updated: Partial<AuthUser>) => {
+    if (!currentUser) return;
+    const mergedUser: AuthUser = {
+      ...currentUser,
+      ...updated,
+      applicationDetails: {
+        ...(currentUser.applicationDetails || {}),
+        ...(updated.applicationDetails || {}),
+      },
+    };
+
+    if (mergedUser.avatar) {
+      if (mergedUser.email) saveAvatarForUser(mergedUser.email, mergedUser.avatar);
+      if (mergedUser.id) saveAvatarForUser(mergedUser.id, mergedUser.avatar);
+      if (mergedUser.phone) saveAvatarForUser(mergedUser.phone, mergedUser.avatar);
+    }
+
+    setCurrentUser(mergedUser);
+    localStorage.setItem('mealmitra_currentUser', JSON.stringify(mergedUser));
+
+    setUsers((prev) => {
+      const updatedList = prev.map((u) =>
+        u.id === mergedUser.id ||
+        (mergedUser.email && u.email && u.email.toLowerCase() === mergedUser.email.toLowerCase()) ||
+        (mergedUser.phone && u.phone && normalizePhone(u.phone) === normalizePhone(mergedUser.phone))
+          ? mergedUser
+          : u
+      );
+      if (!updatedList.some((u) => u.id === mergedUser.id)) {
+        updatedList.push(mergedUser);
+      }
+      localStorage.setItem('mealmitra_registered_users', JSON.stringify(updatedList));
+      return updatedList;
+    });
+
+    // Try backend sync if available
+    try {
+      await api.patch('/users/me', {
+        fullName: mergedUser.name,
+        phone: mergedUser.phone,
+        avatar: mergedUser.avatar,
+        ...mergedUser.applicationDetails,
+      });
+    } catch (e) {
+      console.warn('Backend user profile update note:', e);
+    }
+  };
+
+
+
+  const logout = async () => {
+    try {
+      await AuthService.logout();
+    } catch {
+      // Ignore network errors on logout
+    }
     setCurrentUser(null);
     localStorage.removeItem('mealmitra_currentUser');
+    localStorage.setItem('mealmitra_role', 'entry');
   };
 
   return (
@@ -432,6 +759,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginWithEmail,
         loginWithGoogle,
         updateUserStatus,
+        updateUserProfile,
         logout,
       }}
     >

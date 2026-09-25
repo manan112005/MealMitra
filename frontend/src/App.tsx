@@ -1,11 +1,11 @@
 import React from 'react';
+import { UserRole } from './types';
 import { AppProvider, useApp } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Header } from './components/common/Header';
 import { Sidebar } from './components/common/Sidebar';
 import { MobileNav } from './components/common/MobileNav';
 import { EntryScreen } from './components/entry/EntryScreen';
-import { Home, ArrowLeft } from 'lucide-react';
 
 // Customer Components
 import { CustomerDashboard } from './components/customer/CustomerDashboard';
@@ -22,6 +22,7 @@ import { CookDashboard } from './components/cook/CookDashboard';
 import { CookKitchenManager } from './components/cook/CookKitchenManager';
 import { CookWeeklyMenu } from './components/cook/CookWeeklyMenu';
 import { CookOrders } from './components/cook/CookOrders';
+import { CookSubscriptions } from './components/cook/CookSubscriptions';
 import { CookSubscribers } from './components/cook/CookSubscribers';
 import { CookEarningsAnalytics } from './components/cook/CookEarningsAnalytics';
 import { CookProfileSettings } from './components/cook/CookProfileSettings';
@@ -60,10 +61,18 @@ const MainLayout: React.FC = () => {
 
   const { currentUser } = useAuth();
 
-  // Ensure authenticated user role is preserved on page refresh
+  // Ensure authenticated user role is synced, and unauthenticated users return to entry screen
   React.useEffect(() => {
-    if (currentUser && role === 'entry') {
-      setRole(currentUser.role);
+    if (currentUser) {
+      if (role === 'entry' || !role) {
+        const savedRole = (localStorage.getItem('mealmitra_role') as UserRole) || currentUser.role;
+        setRole(savedRole && savedRole !== 'entry' ? savedRole : currentUser.role);
+      }
+    } else {
+      const savedUser = localStorage.getItem('mealmitra_currentUser');
+      if (!savedUser && role !== 'entry') {
+        setRole('entry');
+      }
     }
   }, [currentUser, role, setRole]);
 
@@ -73,7 +82,7 @@ const MainLayout: React.FC = () => {
       <Header />
 
       {/* Main Container */}
-      {role === 'entry' ? (
+      {!currentUser || role === 'entry' ? (
         <main className="flex-1">
           <EntryScreen />
         </main>
@@ -84,60 +93,15 @@ const MainLayout: React.FC = () => {
 
           {/* Dynamic Content View Area */}
           <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full pb-24 lg:pb-10 overflow-y-auto">
-            {/* Global Quick Back to Landing Bar on all portal pages */}
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 bg-white/90 backdrop-blur-md border border-[#dcc1b1]/60 rounded-2xl px-4 sm:px-5 py-2.5 shadow-2xs">
-              <div className="flex items-center gap-2 sm:gap-3">
-                {((role === 'customer' && customerTab !== 'dashboard') ||
-                  (role === 'cook' && cookTab !== 'dashboard') ||
-                  (role === 'delivery' && deliveryTab !== 'dashboard') ||
-                  (role === 'admin' && adminTab !== 'dashboard')) && (
-                  <>
-                    <button
-                      onClick={() => {
-                        if (role === 'customer') setCustomerTab('dashboard');
-                        else if (role === 'cook') setCookTab('dashboard');
-                        else if (role === 'delivery') setDeliveryTab('dashboard');
-                        else if (role === 'admin') setAdminTab('dashboard');
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#ffdcc5]/60 hover:bg-[#ffdcc5] text-[#944a00] font-bold text-xs transition-all shadow-2xs hover:shadow-xs group"
-                      title="Go to dashboard"
-                    >
-                      <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-                      <span>← Back</span>
-                    </button>
-                    <div className="h-4 w-px bg-[#dcc1b1]/50 hidden sm:block"></div>
-                  </>
-                )}
-
-                <div className="text-xs text-[#564337] flex items-center gap-1.5">
-                  <span className="capitalize font-semibold text-[#1a1c1c]">
-                    {role === 'customer' ? 'Customer Portal' : role === 'cook' ? 'Home Cook Portal' : role === 'delivery' ? 'Delivery Partner Portal' : 'Admin Portal'}
-                  </span>
-                  <span>/</span>
-                  <span className="text-[#944a00] font-bold capitalize">
-                    {role === 'customer' ? customerTab : role === 'cook' ? cookTab : role === 'delivery' ? deliveryTab : adminTab}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => window.history.back()}
-                  className="text-xs text-[#564337] hover:text-[#944a00] flex items-center gap-1 font-medium transition-colors"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Back</span>
-                </button>
-              </div>
-            </div>
-
             {/* Customer Role Views */}
+
             {role === 'customer' && (
               <>
                 {customerTab === 'dashboard' && <CustomerDashboard />}
                 {customerTab === 'discover' && <CustomerDiscover />}
                 {customerTab === 'meals' && <CustomerTodaysMeals />}
                 {customerTab === 'orders' && <CustomerOrders />}
+                {customerTab === 'subscriptions' && <CustomerSubscriptions />}
                 {customerTab === 'following' && <CustomerFollowingReviews viewMode="following" />}
                 {customerTab === 'reviews' && <CustomerFollowingReviews viewMode="reviews" />}
                 {customerTab === 'profile' && <CustomerProfile />}
@@ -152,6 +116,7 @@ const MainLayout: React.FC = () => {
                 {cookTab === 'kitchen' && <CookKitchenManager />}
                 {cookTab === 'menu' && <CookWeeklyMenu />}
                 {cookTab === 'orders' && <CookOrders />}
+                {cookTab === 'subscriptions' && <CookSubscriptions />}
                 {cookTab === 'customers' && <CookSubscribers />}
                 {cookTab === 'earnings' && <CookEarningsAnalytics />}
               </>
