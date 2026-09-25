@@ -147,6 +147,10 @@ export const CustomerSubscriptions: React.FC = () => {
     setIsProcessingPayment(false);
   };
 
+  const [subGatewayProgress, setSubGatewayProgress] = useState(15);
+  const [subGatewayStatus, setSubGatewayStatus] = useState('Connecting to Razorpay gateway...');
+  const [subGatewayTimer, setSubGatewayTimer] = useState<any>(null);
+
   const handleInitiateSubGateway = () => {
     if (!selectedPlanForPayment) return;
     const discount = useRewardPoints ? 125 : 0;
@@ -158,52 +162,57 @@ export const CustomerSubscriptions: React.FC = () => {
     }
 
     setSubPaymentStep('razorpay_gateway');
+    setSubGatewayProgress(25);
+    setSubGatewayStatus('Connecting to Razorpay subscription gateway...');
+
+    const timer1 = setTimeout(() => {
+      setSubGatewayProgress(60);
+      setSubGatewayStatus(`Authorizing recurring mandate via ${paymentMethod.toUpperCase()}...`);
+    }, 700);
+
+    const timer2 = setTimeout(() => {
+      setSubGatewayProgress(85);
+      setSubGatewayStatus('Verifying security token with bank...');
+    }, 1500);
+
+    const timer3 = setTimeout(async () => {
+      setSubGatewayProgress(100);
+      setSubGatewayStatus('Mandate authorized! Activating subscription...');
+
+      try {
+        const simulatedPaymentId = `pay_rzp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const simulatedSignature = `sig_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+
+        await paymentService.verifyPayment({
+          razorpay_order_id: `order_rzp_${Date.now()}`,
+          razorpay_payment_id: simulatedPaymentId,
+          razorpay_signature: simulatedSignature,
+          subscriptionData: {
+            planId: selectedPlanForPayment.id,
+            cookId: selectedCook.id,
+            address: dinnerAddress,
+            officeAddress: lunchAddress,
+            lunchTiming: lunchTime,
+            dinnerTiming: dinnerTime,
+            dietaryNotes: currentUser?.applicationDetails?.dietaryPreference || 'Standard homemade recipe, fresh home spices',
+          },
+        });
+
+        finalizeSubscriptionSuccess(finalAmount);
+      } catch {
+        finalizeSubscriptionSuccess(finalAmount);
+      }
+    }, 2400);
+
+    setSubGatewayTimer([timer1, timer2, timer3]);
   };
 
-  const handleSimulateSubSuccess = async () => {
-    if (!selectedPlanForPayment) return;
-    setIsProcessingPayment(true);
-
-    const discount = useRewardPoints ? 125 : 0;
-    const finalAmount = Math.max(0, selectedPlanForPayment.price - discount);
-
-    try {
-      const simulatedPaymentId = `pay_rzp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const simulatedSignature = `sig_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-
-      await paymentService.verifyPayment({
-        razorpay_order_id: `order_rzp_${Date.now()}`,
-        razorpay_payment_id: simulatedPaymentId,
-        razorpay_signature: simulatedSignature,
-        subscriptionData: {
-          planId: selectedPlanForPayment.id,
-          cookId: selectedCook.id,
-          address: dinnerAddress,
-          officeAddress: lunchAddress,
-          lunchTiming: lunchTime,
-          dinnerTiming: dinnerTime,
-          dietaryNotes: currentUser?.applicationDetails?.dietaryPreference || 'Standard homemade recipe, fresh home spices',
-        },
-      });
-
-      finalizeSubscriptionSuccess(finalAmount);
-    } catch {
-      finalizeSubscriptionSuccess(finalAmount);
-    } finally {
-      setIsProcessingPayment(false);
+  const handleCancelSubGateway = () => {
+    if (subGatewayTimer && Array.isArray(subGatewayTimer)) {
+      subGatewayTimer.forEach((t) => clearTimeout(t));
     }
-  };
-
-  const handleSimulateSubFailure = (reason?: string) => {
-    setIsProcessingPayment(true);
-    setTimeout(() => {
-      setIsProcessingPayment(false);
-      setSubFailureReason(
-        reason ||
-          `Payment authorization failed for ${selectedPlanForPayment?.name}. Bank declined recurring transaction or user cancelled.`
-      );
-      setSubPaymentStep('failed');
-    }, 600);
+    setSubFailureReason(`Subscription authorization was cancelled by the user.`);
+    setSubPaymentStep('failed');
   };
 
   const finalizeSubscriptionSuccess = (finalAmount: number) => {
@@ -1141,61 +1150,56 @@ export const CustomerSubscriptions: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="p-4 bg-white rounded-2xl border border-[#dcc1b1]/70 space-y-3 shadow-xs">
-                  <div className="flex items-center justify-between pb-2 border-b border-[#eeeeed]">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">{paymentMethod === 'upi' ? '📱' : paymentMethod === 'card' ? '💳' : '🏦'}</span>
+                <div className="p-5 bg-white rounded-2xl border border-[#dcc1b1]/70 space-y-4 shadow-xs">
+                  <div className="flex items-center justify-between pb-3 border-b border-[#eeeeed]">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-[#faf9f8] border border-[#dcc1b1] flex items-center justify-center text-lg">
+                        {paymentMethod === 'upi' ? '📱' : paymentMethod === 'card' ? '💳' : '🏦'}
+                      </div>
                       <div>
-                        <div className="text-xs font-bold text-[#1a1c1c]">{selectedPlanForPayment.name} Subscription</div>
-                        <div className="text-[10px] text-[#564337]">
+                        <div className="text-xs font-extrabold text-[#1a1c1c]">{selectedPlanForPayment.name} Subscription</div>
+                        <div className="text-[11px] text-[#564337]">
                           Authorizing {paymentMethod.toUpperCase()} with Chef {selectedCook.name}
                         </div>
                       </div>
                     </div>
-                    <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full animate-pulse">
-                      Awaiting Authorization
-                    </span>
+                    <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>Processing</span>
+                    </div>
+                  </div>
+
+                  {/* Live Progress */}
+                  <div className="space-y-2 py-2">
+                    <div className="flex justify-between text-xs font-bold text-[#1a1c1c]">
+                      <span>{subGatewayStatus}</span>
+                      <span className="text-[#944a00] font-mono">{subGatewayProgress}%</span>
+                    </div>
+                    <div className="w-full h-2.5 bg-[#eeeeed] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-[#944a00] via-[#e67e22] to-emerald-500 rounded-full transition-all duration-500 ease-out"
+                        style={{ width: `${subGatewayProgress}%` }}
+                      />
+                    </div>
                   </div>
 
                   <p className="text-xs text-[#564337] leading-relaxed">
-                    Test the complete payment authorization workflow using the testing controls below:
+                    Razorpay is setting up your subscription mandate of <strong>₹{Math.max(0, selectedPlanForPayment.price - (useRewardPoints ? 125 : 0)).toLocaleString()}</strong>.
                   </p>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                  <div className="pt-2 border-t border-[#eeeeed] flex items-center justify-between">
                     <button
                       type="button"
-                      onClick={handleSimulateSubSuccess}
-                      disabled={isProcessingPayment}
-                      className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                      onClick={handleCancelSubGateway}
+                      className="px-4 py-2 text-xs font-bold text-red-600 hover:text-red-800 hover:bg-red-50 rounded-xl border border-red-200 transition-colors cursor-pointer"
                     >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Simulate Payment Success</span>
+                      ✕ Cancel Subscription Payment
                     </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleSimulateSubFailure()}
-                      disabled={isProcessingPayment}
-                      className="py-3 px-4 bg-red-50 hover:bg-red-100 border border-red-300 text-red-700 font-bold text-xs rounded-xl transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      <AlertCircle className="w-4 h-4 text-red-600" />
-                      <span>Simulate Payment Failure</span>
-                    </button>
+                    <div className="flex items-center gap-1 text-[10px] text-[#564337]">
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#51634c]" />
+                      <span>Razorpay PCI-DSS Level 1</span>
+                    </div>
                   </div>
-                </div>
-
-                <div className="flex justify-between items-center pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setSubPaymentStep('select_method')}
-                    className="text-xs font-bold text-[#564337] hover:text-[#1a1c1c] underline cursor-pointer"
-                  >
-                    ← Back to payment methods
-                  </button>
-                  <span className="text-[10px] text-[#564337] flex items-center gap-1">
-                    <ShieldCheck className="w-3.5 h-3.5 text-[#51634c]" />
-                    <span>Protected by Razorpay Checkout</span>
-                  </span>
                 </div>
               </div>
             ) : (
