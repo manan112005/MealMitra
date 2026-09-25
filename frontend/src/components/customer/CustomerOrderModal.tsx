@@ -252,12 +252,12 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
                   ? 'Booking Confirmed!'
                   : currentStep === 'payment'
                   ? 'Razorpay Secure Checkout'
-                  : 'Reserve Tiffin Slot'}
+                  : 'Add to Cart & Checkout'}
               </h3>
               <p className="text-[11px] text-[#564337]">
                 {currentStep === 'payment'
                   ? '100% Encrypted & Instant Payment Processing'
-                  : 'Finite home-cooked meals • Prepared fresh to order'}
+                  : 'Fresh home-cooked meal • Fast preparation & delivery'}
               </p>
             </div>
           </div>
@@ -904,7 +904,8 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
                 disabled={isSoldOut}
                 className="flex-1 py-3.5 bg-[#944a00] hover:bg-[#713700] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
               >
-                <span>Pay Securely • ₹{total}</span>
+                <ShoppingBag className="w-4 h-4" />
+                <span>Proceed to Payment • ₹{total}</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>

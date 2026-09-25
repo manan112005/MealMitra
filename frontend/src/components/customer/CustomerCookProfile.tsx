@@ -315,13 +315,20 @@ export const CustomerCookProfile: React.FC<Props> = ({ cookId, onBack }) => {
 
                   <button
                     onClick={() => setSelectedMealForOrder(meal)}
-                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-xs ${
+                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1.5 ${
                       meal.availableQty > 0
                         ? 'bg-[#944a00] hover:bg-[#713700] text-white'
                         : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
                     }`}
                   >
-                    {meal.availableQty > 0 ? 'Reserve Slot' : 'Join Waitlist'}
+                    {meal.availableQty > 0 ? (
+                      <>
+                        <ShoppingBag className="w-3.5 h-3.5" />
+                        <span>Add to Cart</span>
+                      </>
+                    ) : (
+                      'Join Waitlist'
+                    )}
                   </button>
                 </div>
               </div>
@@ -461,10 +468,10 @@ export const CustomerCookProfile: React.FC<Props> = ({ cookId, onBack }) => {
                     const lunchMeal = cookMeals.find(m => m.category === 'Lunch' || m.category === 'Both');
                     if (lunchMeal) setSelectedMealForOrder(lunchMeal);
                   }}
-                  className="w-full mt-3 py-2.5 bg-[#944a00] hover:bg-[#713700] text-white text-xs font-bold rounded-xl transition-colors shadow-xs flex items-center justify-center gap-2"
+                  className="w-full mt-3 py-2.5 bg-[#944a00] hover:bg-[#713700] text-white text-xs font-bold rounded-xl transition-colors shadow-xs flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <ShoppingBag className="w-3.5 h-3.5" />
-                  <span>Reserve Lunch Slot</span>
+                  <span>Add Lunch to Cart</span>
                 </button>
               )}
             </div>
@@ -564,10 +571,10 @@ export const CustomerCookProfile: React.FC<Props> = ({ cookId, onBack }) => {
                     const dinnerMeal = cookMeals.find(m => m.category === 'Dinner' || m.category === 'Both');
                     if (dinnerMeal) setSelectedMealForOrder(dinnerMeal);
                   }}
-                  className="w-full mt-3 py-2.5 bg-[#51634c] hover:bg-[#3d4b39] text-white text-xs font-bold rounded-xl transition-colors shadow-xs flex items-center justify-center gap-2"
+                  className="w-full mt-3 py-2.5 bg-[#51634c] hover:bg-[#3d4b39] text-white text-xs font-bold rounded-xl transition-colors shadow-xs flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <ShoppingBag className="w-3.5 h-3.5" />
-                  <span>Reserve Dinner Slot</span>
+                  <span>Add Dinner to Cart</span>
                 </button>
               )}
             </div>

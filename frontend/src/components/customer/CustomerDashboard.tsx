@@ -230,13 +230,20 @@ export const CustomerDashboard: React.FC = () => {
 
                   <button
                     onClick={() => setSelectedMealForOrder(meal)}
-                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-xs active:scale-95 ${
+                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer flex items-center gap-1.5 ${
                       meal.availableQty > 0
                         ? 'bg-[#944a00] hover:bg-[#713700] text-white'
                         : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
                     }`}
                   >
-                    {meal.availableQty > 0 ? 'Reserve Slot' : 'Join Waitlist'}
+                    {meal.availableQty > 0 ? (
+                      <>
+                        <ShoppingBag className="w-3.5 h-3.5" />
+                        <span>Add to Cart</span>
+                      </>
+                    ) : (
+                      'Join Waitlist'
+                    )}
                   </button>
                 </div>
               </div>

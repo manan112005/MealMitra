@@ -18,6 +18,7 @@ import {
   ChevronRight,
   ShieldCheck,
   AlertCircle,
+  ShoppingBag,
 } from 'lucide-react';
 
 export const CustomerTodaysMeals: React.FC = () => {
@@ -480,11 +481,14 @@ export const CustomerTodaysMeals: React.FC = () => {
                           : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
                       }`}
                     >
-                      <span>
-                        {!isSoldOut
-                          ? `Reserve ${meal.category} Slot • ₹${meal.price}`
-                          : 'Join Waitlist'}
-                      </span>
+                      {!isSoldOut ? (
+                        <>
+                          <ShoppingBag className="w-3.5 h-3.5" />
+                          <span>Add to Cart • ₹{meal.price}</span>
+                        </>
+                      ) : (
+                        <span>Join Waitlist</span>
+                      )}
                     </button>
                   </div>
                 </div>
