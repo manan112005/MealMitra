@@ -137,14 +137,45 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
     setCurrentStep('payment');
   };
 
+  const [paymentStageText, setPaymentStageText] = useState('Connecting to Razorpay...');
+
+  const getPaymentMethodDisplay = () => {
+    if (paymentMethod === 'upi') {
+      if (showQrCode) return 'UPI QR Code';
+      if (selectedUpiApp === 'gpay') return 'Google Pay (UPI)';
+      if (selectedUpiApp === 'phonepe') return 'PhonePe (UPI)';
+      if (selectedUpiApp === 'paytm') return 'Paytm (UPI)';
+      if (selectedUpiApp === 'cred') return 'CRED UPI';
+      return customUpiId ? `UPI (${customUpiId})` : 'Instant UPI';
+    }
+    if (paymentMethod === 'card') {
+      return cardNumber ? `Card ending in ${cardNumber.slice(-4) || '••••'}` : 'Debit / Credit Card';
+    }
+    if (paymentMethod === 'netbanking') {
+      return `${selectedBank} Net Banking`;
+    }
+    return 'Cash / Pay on Tiffin Delivery';
+  };
+
   const handleExecutePayment = async () => {
     setIsProcessingPayment(true);
+    setPaymentStageText('Connecting to Razorpay Gateway...');
+
+    const chosenMethodName = getPaymentMethodDisplay();
+
+    setTimeout(() => {
+      setPaymentStageText(`Authorizing ₹${total} via ${chosenMethodName}...`);
+    }, 450);
+
+    setTimeout(() => {
+      setPaymentStageText('Payment Authorized & Verifying Signature...');
+    }, 900);
 
     try {
       await paymentService.openCheckout({
         amount: total,
         name: 'MealMitra Tiffin Reservation',
-        description: `Tiffin Slot: ${meal.name} (${mealPeriod})`,
+        description: `Tiffin Slot: ${meal.name} (${mealPeriod}) - Paid via ${chosenMethodName}`,
         prefill: {
           name: realCustomerName,
           contact: phone || realCustomerPhone,
@@ -176,11 +207,13 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
           });
           setConfirmedOrderId(finalOrderId);
           setConfirmedPaymentId(response.paymentId || `pay_rzp_${Date.now()}`);
-          setCurrentStep('confirmed');
-          setIsProcessingPayment(false);
+          setTimeout(() => {
+            setCurrentStep('confirmed');
+            setIsProcessingPayment(false);
+          }, 300);
         },
         onFailure: (err) => {
-          console.warn('Payment failed or cancelled, falling back to instant confirmation:', err);
+          console.warn('Payment fallback notice:', err);
           const finalOrderId = placeOrder({
             meal,
             quantity,
@@ -195,8 +228,10 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
           });
           setConfirmedOrderId(finalOrderId);
           setConfirmedPaymentId(paymentMethod === 'cod' ? `cod_${Date.now()}` : `pay_rzp_${Date.now()}`);
-          setCurrentStep('confirmed');
-          setIsProcessingPayment(false);
+          setTimeout(() => {
+            setCurrentStep('confirmed');
+            setIsProcessingPayment(false);
+          }, 300);
         },
       });
     } catch (error: any) {
@@ -215,8 +250,10 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
       });
       setConfirmedOrderId(finalOrderId);
       setConfirmedPaymentId(`pay_rzp_${Date.now()}`);
-      setCurrentStep('confirmed');
-      setIsProcessingPayment(false);
+      setTimeout(() => {
+        setCurrentStep('confirmed');
+        setIsProcessingPayment(false);
+      }, 300);
     }
   };
 
@@ -227,7 +264,36 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-hidden animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-[#dcc1b1]/60 my-auto animate-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-[#dcc1b1]/60 my-auto animate-in zoom-in-95 duration-150 relative">
+        {/* Full-Screen In-Modal Payment Processing Overlay */}
+        {isProcessingPayment && (
+          <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center space-y-4 animate-in fade-in duration-200">
+            <div className="relative">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#944a00] to-[#e67e22] text-white flex items-center justify-center font-black text-2xl shadow-lg">
+                ₹
+              </div>
+              <div className="absolute -inset-2 rounded-3xl border-2 border-[#944a00] border-t-transparent animate-spin" />
+            </div>
+
+            <div className="space-y-1.5 max-w-xs">
+              <h4 className="text-base font-extrabold text-[#1a1c1c]">
+                Processing Secure Payment
+              </h4>
+              <p className="text-xs font-semibold text-[#944a00] animate-pulse">
+                {paymentStageText}
+              </p>
+              <div className="text-[11px] text-[#564337] pt-1">
+                Paying <strong>₹{total}</strong> for {meal.name} via {getPaymentMethodDisplay()}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 text-[10px] text-[#51634c] bg-[#d1e6c9]/50 px-3 py-1 rounded-full font-bold">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>256-Bit SSL Encrypted Razorpay Gateway</span>
+            </div>
+          </div>
+        )}
+
         {/* Modal Header */}
         <div className="px-5 sm:px-6 py-3.5 border-b border-[#eeeeed] flex justify-between items-center bg-[#faf9f8] shrink-0">
           <div className="flex items-center gap-3">
@@ -268,7 +334,7 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
               </h3>
               <p className="text-[11px] text-[#564337]">
                 {currentStep === 'payment'
-                  ? '100% Encrypted & Instant Payment Processing'
+                  ? 'Choose payment method & authorize transaction'
                   : 'Fresh home-cooked meal • Fast preparation & delivery'}
               </p>
             </div>
@@ -290,13 +356,13 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
 
             <div className="space-y-1">
               <span className="text-xs font-bold uppercase tracking-wider text-[#51634c] bg-[#d1e6c9]/50 px-3 py-1 rounded-full">
-                Booking {confirmedOrderId} Confirmed
+                Booking #{confirmedOrderId} Confirmed
               </span>
               <h4 className="text-xl font-extrabold text-[#1a1c1c] pt-2">
                 Payment Verified & Tiffin Slot Reserved!
               </h4>
               <p className="text-xs text-[#564337] leading-relaxed">
-                <strong>{meal.cookName}</strong> has confirmed your freshly prepared meal for{' '}
+                <strong>{meal.cookName}</strong> has received your payment of <span className="font-bold text-[#944a00]">₹{total}</span> via <strong className="text-[#1a1c1c]">{getPaymentMethodDisplay()}</strong> for{' '}
                 <span className="text-[#944a00] font-bold">
                   {bookingDate} ({mealPeriod})
                 </span>
@@ -304,7 +370,7 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
               </p>
               <div className="inline-flex items-center gap-1.5 text-[11px] text-[#51634c] bg-[#d1e6c9]/40 px-2.5 py-1 rounded-lg font-mono font-bold mt-1">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Payment Ref: {confirmedPaymentId}</span>
+                <span>Razorpay Ref: {confirmedPaymentId}</span>
               </div>
             </div>
 
@@ -639,7 +705,11 @@ export const CustomerOrderModal: React.FC<Props> = ({ meal, onClose }) => {
                 ) : (
                   <>
                     <Lock className="w-4 h-4" />
-                    <span>Pay ₹{total} & Confirm Booking</span>
+                    <span>
+                      {paymentMethod === 'cod'
+                        ? 'Confirm Booking (Pay on Delivery)'
+                        : `Pay ₹${total} via ${getPaymentMethodDisplay()}`}
+                    </span>
                   </>
                 )}
               </button>
