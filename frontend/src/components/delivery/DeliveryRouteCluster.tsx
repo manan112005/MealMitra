@@ -18,6 +18,9 @@ import {
   TrendingDown,
   ShieldCheck,
   Map as MapIcon,
+  Thermometer,
+  Flame,
+  AlertTriangle,
 } from 'lucide-react';
 import { optimizeDeliveryRoute } from '../../utils/routeOptimizer';
 import { GoogleMapView } from './GoogleMapView';
@@ -157,6 +160,68 @@ export const DeliveryRouteCluster: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* 3 Delivery Fleet AI Active Features Bar */}
+      <div className="bg-gradient-to-r from-[#1e293b] via-[#334155] to-[#1e293b] text-white p-4 sm:p-5 rounded-2xl border border-slate-700 shadow-md space-y-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+            <span className="text-xs font-black uppercase tracking-wider text-blue-300 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+              Delivery Fleet AI Suite Live Telemetry
+            </span>
+          </div>
+
+          <button
+            onClick={() => setDeliveryTab('fleet-ai')}
+            className="text-xs font-bold text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-xl border border-white/20 transition-all flex items-center gap-1 cursor-pointer"
+          >
+            <span>Open Dedicated Fleet AI Hub</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+          {/* Feature 1: Multi-Kitchen dynamic route clustering */}
+          <div className="bg-white/10 backdrop-blur-xs p-3 rounded-xl border border-white/10 space-y-1">
+            <div className="flex items-center justify-between text-[11px] font-bold text-blue-300">
+              <span className="flex items-center gap-1">
+                <Navigation className="w-3.5 h-3.5" /> 1. Multi-Kitchen Bundling
+              </span>
+              <span className="text-emerald-400 font-extrabold">35% Fuel Saved</span>
+            </div>
+            <p className="text-xs text-slate-200">
+              Bundled 2 neighboring home kitchens into 1 single thermal delivery run.
+            </p>
+          </div>
+
+          {/* Feature 2: Hot-food ETA & thermal decay predictor */}
+          <div className="bg-white/10 backdrop-blur-xs p-3 rounded-xl border border-white/10 space-y-1">
+            <div className="flex items-center justify-between text-[11px] font-bold text-orange-300">
+              <span className="flex items-center gap-1">
+                <Thermometer className="w-3.5 h-3.5" /> 2. Thermal Decay Box
+              </span>
+              <span className="text-orange-400 font-extrabold">78°C Steaming Hot</span>
+            </div>
+            <p className="text-xs text-slate-200">
+              Double-walled thermal insulation: 38 mins remaining in food safety zone.
+            </p>
+          </div>
+
+          {/* Feature 3: AI Live traffic & route optimizer */}
+          <div className="bg-white/10 backdrop-blur-xs p-3 rounded-xl border border-white/10 space-y-1">
+            <div className="flex items-center justify-between text-[11px] font-bold text-indigo-300">
+              <span className="flex items-center gap-1">
+                <Zap className="w-3.5 h-3.5" /> 3. Traffic Auto-Reroute
+              </span>
+              <span className="text-blue-400 font-extrabold">-11 Mins Saved</span>
+            </div>
+            <p className="text-xs text-slate-200">
+              Bypassing SG Highway flyover via Judges Bungalow Rd green corridor.
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Main Map Views */}
       {routeStops.length === 0 ? (

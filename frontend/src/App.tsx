@@ -31,6 +31,7 @@ import { CookProfileSettings } from './components/cook/CookProfileSettings';
 // Delivery Partner Components
 import { DeliveryDashboard } from './components/delivery/DeliveryDashboard';
 import { DeliveryRouteCluster } from './components/delivery/DeliveryRouteCluster';
+import { DeliveryAIFleetHub } from './components/delivery/DeliveryAIFleetHub';
 import { DeliveryPickups } from './components/delivery/DeliveryPickups';
 import { DeliveryActive } from './components/delivery/DeliveryActive';
 import { DeliveryHistoryEarnings } from './components/delivery/DeliveryHistoryEarnings';
@@ -128,6 +129,7 @@ const MainLayout: React.FC = () => {
             {role === 'delivery' && (
               <>
                 {deliveryTab === 'dashboard' && <DeliveryDashboard />}
+                {deliveryTab === 'fleet-ai' && <DeliveryAIFleetHub />}
                 {deliveryTab === 'deliveries' && <DeliveryRouteCluster />}
                 {deliveryTab === 'pickup' && <DeliveryPickups />}
                 {deliveryTab === 'active' && <DeliveryActive />}

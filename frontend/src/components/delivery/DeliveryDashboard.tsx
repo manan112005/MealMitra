@@ -130,6 +130,52 @@ export const DeliveryDashboard: React.FC = () => {
         )}
       </section>
 
+      {/* Delivery Fleet AI Features Hub Spotlight Banner */}
+      <section className="bg-gradient-to-r from-[#1e293b] via-[#334155] to-[#1e293b] text-white p-5 sm:p-6 rounded-3xl border border-slate-700 shadow-lg space-y-4">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md">
+              <Sparkles className="w-6 h-6 animate-pulse" />
+            </div>
+            <div>
+              <div className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-blue-300 mb-0.5">
+                <span>🤖 Logistics AI Suite Active</span>
+              </div>
+              <h3 className="text-base sm:text-lg font-black text-white">
+                Multi-Kitchen Route Clustering, Thermal Decay & Traffic AI
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-300 mt-0.5 max-w-xl">
+                Bundles nearby home kitchens (saving 35% fuel), tracks real-time box temperature decay, and auto-bypasses SG Highway traffic.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setDeliveryTab('fleet-ai')}
+            className="self-end md:self-auto px-4 py-2.5 rounded-xl bg-white text-slate-900 text-xs font-black hover:bg-blue-50 hover:text-blue-700 active:scale-95 transition-all shadow-md shrink-0 flex items-center gap-1.5 cursor-pointer"
+          >
+            <span>Open Fleet AI Hub</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* 3 AI Quick Badges */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-700/60">
+          <div className="bg-white/10 backdrop-blur-xs p-2.5 rounded-xl border border-white/10 text-xs flex items-center justify-between">
+            <span className="text-slate-300 font-semibold">1. Multi-Kitchen Bundling:</span>
+            <span className="font-extrabold text-emerald-400">35% Fuel Saved</span>
+          </div>
+          <div className="bg-white/10 backdrop-blur-xs p-2.5 rounded-xl border border-white/10 text-xs flex items-center justify-between">
+            <span className="text-slate-300 font-semibold">2. Food Thermal Box:</span>
+            <span className="font-extrabold text-orange-400">78°C Steaming Hot</span>
+          </div>
+          <div className="bg-white/10 backdrop-blur-xs p-2.5 rounded-xl border border-white/10 text-xs flex items-center justify-between">
+            <span className="text-slate-300 font-semibold">3. Traffic Reroute:</span>
+            <span className="font-extrabold text-blue-400">Bypass SG Highway</span>
+          </div>
+        </div>
+      </section>
+
       {/* Metrics Row */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div

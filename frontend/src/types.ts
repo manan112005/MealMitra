@@ -31,6 +31,7 @@ export type CookTab =
 
 export type DeliveryTab =
   | 'dashboard'
+  | 'fleet-ai'
   | 'deliveries'
   | 'route'
   | 'pickup'

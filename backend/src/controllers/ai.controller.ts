@@ -120,3 +120,64 @@ export const getHealthGoalsCatalog = async (_req: Request, res: Response): Promi
     });
   }
 };
+
+export const clusterRoutes = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { stops = [], riderLocation } = req.body;
+    const result = AIService.clusterMultiKitchenRoutes({ stops, riderLocation });
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to optimize multi-kitchen cluster route',
+      error: error.message,
+    });
+  }
+};
+
+export const predictThermal = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { initialTempC, packedMinutesAgo, transitDurationMins, ambientTempC } = req.body;
+    const result = AIService.predictThermalDecay({
+      initialTempC: Number(initialTempC) || 80,
+      packedMinutesAgo: Number(packedMinutesAgo) || 0,
+      transitDurationMins: Number(transitDurationMins) || 20,
+      ambientTempC: Number(ambientTempC) || 33,
+    });
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to calculate thermal food decay ETA',
+      error: error.message,
+    });
+  }
+};
+
+export const optimizeTraffic = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { currentZone, targetDestination, avoidPeakCongestion } = req.body;
+    const result = AIService.optimizeTrafficReroute({
+      currentZone,
+      targetDestination,
+      avoidPeakCongestion: avoidPeakCongestion !== false,
+    });
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to optimize traffic routes',
+      error: error.message,
+    });
+  }
+};
+

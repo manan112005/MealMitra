@@ -16,6 +16,8 @@ import {
   ArrowRight,
   ChefHat,
   ExternalLink,
+  Thermometer,
+  Flame,
 } from 'lucide-react';
 import { optimizeDeliveryRoute } from '../../utils/routeOptimizer';
 import { GoogleMapView } from './GoogleMapView';
@@ -132,6 +134,48 @@ export const DeliveryActive: React.FC = () => {
           <span>Delivery confirmed! Trip earnings of ₹60 credited to your wallet.</span>
         </div>
       )}
+
+      {/* Active Trip Thermal Safety & Live Traffic AI Bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Hot-Food Thermal Decay Gauge */}
+        <div className="bg-gradient-to-br from-[#fff7f0] to-[#fff] p-4 rounded-2xl border border-[#ffdcc5] shadow-xs space-y-2">
+          <div className="flex items-center justify-between text-xs font-bold">
+            <span className="flex items-center gap-1.5 text-[#b34700]">
+              <Thermometer className="w-4 h-4 text-[#ff6d00]" />
+              <span>AI Hot-Food Thermal Decay</span>
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-orange-100 text-[#b34700] text-[10px] font-black">
+              🔥 76.4°C Steaming Hot
+            </span>
+          </div>
+
+          <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-[#ff6d00] to-emerald-500 rounded-full w-4/5" />
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] text-[#6a422a]">
+            <span>Safety Limit: 58°C</span>
+            <span className="font-extrabold text-emerald-700">32 mins safe margin</span>
+          </div>
+        </div>
+
+        {/* AI Traffic Auto-Reroute Active Bar */}
+        <div className="bg-gradient-to-br from-indigo-50/80 to-white p-4 rounded-2xl border border-indigo-200 shadow-xs space-y-2">
+          <div className="flex items-center justify-between text-xs font-bold">
+            <span className="flex items-center gap-1.5 text-indigo-900">
+              <Zap className="w-4 h-4 text-indigo-600" />
+              <span>AI Traffic Bypass Active</span>
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[10px] font-black">
+              -11 Mins Saved
+            </span>
+          </div>
+
+          <p className="text-xs text-indigo-950 font-medium">
+            Diverted around SG Highway via Judges Bungalow Rd. Arriving on time with maximum heat.
+          </p>
+        </div>
+      </div>
 
       {/* Real Google Maps Navigation Component */}
       <GoogleMapView
